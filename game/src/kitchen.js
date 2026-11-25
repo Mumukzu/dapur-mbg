@@ -52,6 +52,8 @@ export function createGame() {
     board: null, // created by main.js (needs orders module state)
     flash: 0, // serve flash 0..1
     tickSecond: -1,
+    lastStation: null, // last station used — the chef walks there (cosmetic)
+    chefPose: null, // staged screenshot pose override (cosmetic)
   };
 }
 
@@ -215,7 +217,9 @@ function trashHand(kitchen) {
 export function useStation(game, stationId, arg) {
   const kitchen = game.kitchen;
   if (game.screen !== 'playing') return;
-  if (stationId === 'pantry') {
+  // Presentational only: the chef walks to the station just used.
+  game.lastStation = stationId;
+  if (stationId === 'pantry' || stationId === 'fridge') {
     if (arg) grabIngredient(kitchen, arg);
     return;
   }

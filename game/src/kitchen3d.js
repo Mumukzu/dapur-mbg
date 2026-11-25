@@ -2,15 +2,16 @@
 // Clicks are raycast against the stations' invisible hit boxes; hovering
 // a station lights its ring and label. Each station also carries a DOM
 // label that tracks its 3D anchor on screen, with a live progress bar
-// while chopping or cooking. Keyboard 1-6 + Space use the same entry
+// while chopping or cooking. Keyboard 1-7 + Space use the same entry
 // point as the mouse, so both play the identical game.
 
 import * as THREE from '../vendor/three.module.min.js';
 import { INGREDIENTS, STATIONS } from './config.js';
-import { PANTRY_BINS, STATION_POS } from './scene3d.js';
+import { FRIDGE_BINS, PANTRY_BINS, STATION_POS } from './scene3d.js';
 
 const LABELS = {
-  pantry: { key: '1', name: 'PANTRY', anchor: new THREE.Vector3(-7.35, 2.3, -4.7), lift: 0.4 },
+  pantry: { key: '1', name: 'PANTRY', anchor: new THREE.Vector3(-7.9, 3.2, -4.7), lift: 0.4 },
+  fridge: { key: '7', name: 'FRIDGE', anchor: STATION_POS.fridge, lift: 0.8 },
   board: { key: '2', name: 'CHOP BOARD', anchor: STATION_POS.board, lift: 1.5 },
   wok: { key: '3', name: 'WOK', anchor: STATION_POS.wok, lift: 1.9 },
   fryer: { key: '4', name: 'FRYER', anchor: STATION_POS.fryer, lift: 1.9 },
@@ -30,9 +31,9 @@ export function createPicker(world, labelRoot) {
     labelRoot.appendChild(el);
     labelEls[id] = el;
   }
-  // Tiny name tags over each pantry bin.
+  // Tiny name tags over each pantry and fridge bin.
   const binEls = {};
-  for (const bin of PANTRY_BINS) {
+  for (const bin of [...PANTRY_BINS, ...FRIDGE_BINS]) {
     const el = document.createElement('div');
     el.className = 'station-label';
     el.innerHTML = `<span class="tag" style="font-size:11px">${INGREDIENTS[bin.ing].name}</span>`;
@@ -72,8 +73,11 @@ export function createPicker(world, labelRoot) {
       const ring = world.hoverRing;
       if (picker.hovered && picker.hovered !== 'pantry' && game.screen === 'playing') {
         const pos = STATION_POS[picker.hovered];
-        ring.position.set(pos.x, 1.14, pos.z);
-        ring.position.y = picker.hovered === 'trash' ? 0.03 : 1.14;
+        // The fridge ring sits on the floor in front of the unit, not
+        // inside its body.
+        if (picker.hovered === 'fridge') ring.position.set(pos.x, 0.03, -3.2);
+        else if (picker.hovered === 'trash') ring.position.set(pos.x, 0.03, pos.z);
+        else ring.position.set(pos.x, 1.14, pos.z);
         ring.visible = true;
       } else {
         ring.visible = false;
@@ -81,7 +85,8 @@ export function createPicker(world, labelRoot) {
       const sel = world.selectRing;
       if (picker.selected && game.screen === 'playing') {
         const pos = STATION_POS[picker.selected];
-        sel.position.set(pos.x, picker.selected === 'trash' ? 0.03 : 1.14, pos.z);
+        if (picker.selected === 'fridge') sel.position.set(pos.x, 0.03, -3.2);
+        else sel.position.set(pos.x, picker.selected === 'trash' ? 0.03 : 1.14, pos.z);
         sel.visible = true;
       } else {
         sel.visible = false;
@@ -120,6 +125,8 @@ export function createPicker(world, labelRoot) {
           state = 'Plate ready — serve it!';
         } else if (id === 'pantry' && k.hand) {
           state = `Carrying ${INGREDIENTS[k.hand.ing].name}`;
+        } else if (id === 'fridge' && k.hand && INGREDIENTS[k.hand.ing].cold) {
+          state = `Carrying ${INGREDIENTS[k.hand.ing].name} — keep it cold!`;
         }
         stateEl.textContent = state;
         if (progress >= 0) {
@@ -131,7 +138,7 @@ export function createPicker(world, labelRoot) {
         el.classList.toggle('hot', id === 'serve' && k.plate.length > 0);
         el.classList.toggle('selected', picker.selected === id);
       }
-      for (const bin of PANTRY_BINS) {
+      for (const bin of [...PANTRY_BINS, ...FRIDGE_BINS]) {
         const el = binEls[bin.ing];
         // Name tags sit on the front of each crate, below the sample, so
         // they never collide with the order tickets at the top of the screen.

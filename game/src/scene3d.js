@@ -7,10 +7,12 @@
 //
 // Station world positions (x right, y up, z toward the camera):
 //   pantry (-5.7, wall shelves) · board (-2.6) · wok (0.2) · fryer (2.9)
-//   plate (-1.3, island) · serve (2.4, island) · trash (5.2)
+//   plate (-1.3, island) · serve (2.4, island) · fridge (7.9, right wall)
+//   trash (5.2)
 
 import * as THREE from '../vendor/three.module.min.js';
 import { makeIngredient, makePlate } from './ingredients3d.js';
+import { createChef } from './chef3d.js';
 
 export const STATION_POS = {
   pantry: new THREE.Vector3(-5.7, 2.2, -4.9),
@@ -19,17 +21,32 @@ export const STATION_POS = {
   fryer: new THREE.Vector3(2.9, 1.12, -3.6),
   plate: new THREE.Vector3(-1.3, 1.12, 0.4),
   serve: new THREE.Vector3(2.4, 1.12, 0.4),
+  fridge: new THREE.Vector3(7.9, 2.2, -4.4),
   trash: new THREE.Vector3(5.2, 0.7, 0.8),
 };
 
-// Pantry bin slots: two rows of three on the wall shelves.
+// Pantry bin slots: three rows of four on the wall shelves (dry goods).
 export const PANTRY_BINS = [
-  { ing: 'rice', pos: new THREE.Vector3(-6.6, 1.62, -4.85) },
-  { ing: 'noodle', pos: new THREE.Vector3(-5.7, 1.62, -4.85) },
-  { ing: 'chicken', pos: new THREE.Vector3(-4.8, 1.62, -4.85) },
-  { ing: 'egg', pos: new THREE.Vector3(-6.6, 2.72, -4.85) },
-  { ing: 'chili', pos: new THREE.Vector3(-5.7, 2.72, -4.85) },
-  { ing: 'veg', pos: new THREE.Vector3(-4.8, 2.72, -4.85) },
+  { ing: 'rice', pos: new THREE.Vector3(-7.05, 1.62, -4.85) },
+  { ing: 'noodle', pos: new THREE.Vector3(-6.15, 1.62, -4.85) },
+  { ing: 'chicken', pos: new THREE.Vector3(-5.25, 1.62, -4.85) },
+  { ing: 'egg', pos: new THREE.Vector3(-4.35, 1.62, -4.85) },
+  { ing: 'chili', pos: new THREE.Vector3(-7.05, 2.72, -4.85) },
+  { ing: 'veg', pos: new THREE.Vector3(-6.15, 2.72, -4.85) },
+  { ing: 'potato', pos: new THREE.Vector3(-5.25, 2.72, -4.85) },
+  { ing: 'carrot', pos: new THREE.Vector3(-4.35, 2.72, -4.85) },
+  { ing: 'tomato', pos: new THREE.Vector3(-7.05, 3.82, -4.85) },
+  { ing: 'onion', pos: new THREE.Vector3(-6.15, 3.82, -4.85) },
+  { ing: 'tempeh', pos: new THREE.Vector3(-5.25, 3.82, -4.85) },
+  { ing: 'beef', pos: new THREE.Vector3(-4.35, 3.82, -4.85) },
+];
+
+// Fridge bin slots: cold goods on two shelves on the fridge's front.
+export const FRIDGE_BINS = [
+  { ing: 'fish', pos: new THREE.Vector3(7.35, 1.62, -3.8) },
+  { ing: 'tofu', pos: new THREE.Vector3(8.45, 1.62, -3.8) },
+  { ing: 'milk', pos: new THREE.Vector3(7.35, 2.72, -3.8) },
+  { ing: 'fruit', pos: new THREE.Vector3(8.45, 2.72, -3.8) },
 ];
 
 const WOOD = 0x7d5230;
@@ -225,11 +242,11 @@ export function buildWorld(container) {
   world.add(box(0.06, 1.7, 0.05, std(0x5d3a1e, 0.8), 6.2, 3.6, -5.36, false));
   world.add(box(2.1, 0.06, 0.05, std(0x5d3a1e, 0.8), 6.2, 3.6, -5.36, false));
 
-  // Hanging pans on the back wall.
+  // Hanging pans on the back wall (up high, clear of the pantry's top row).
   for (let i = 0; i < 3; i += 1) {
-    const pan = cyl(0.34, 0.34, 0.07, std(0x3c3c46, 0.5, 0.7), -7.6 + i * 0.85, 3.4, -5.4);
+    const pan = cyl(0.34, 0.34, 0.07, std(0x3c3c46, 0.5, 0.7), -7.6 + i * 0.85, 4.6, -5.4);
     pan.rotation.x = Math.PI / 2 - 0.12;
-    const handle = box(0.07, 0.5, 0.04, std(0x3c3c46, 0.5, 0.7), -7.6 + i * 0.85, 3.85, -5.42, false);
+    const handle = box(0.07, 0.5, 0.04, std(0x3c3c46, 0.5, 0.7), -7.6 + i * 0.85, 5.05, -5.42, false);
     world.add(pan, handle);
   }
 
@@ -296,14 +313,15 @@ export function buildWorld(container) {
     world.add(cyl(0.17, 0.17, 0.06, std(0x5d3a1e, 0.7), -1.4 + i * 0.75, 3.58, -5.15, 14));
   });
 
-  // --- Pantry shelves on the left wall, with six ingredient bins.
+  // --- Pantry shelves on the left wall, with twelve ingredient bins.
   const shelfMat = std(WOOD_TOP, 0.8);
-  world.add(box(2.9, 0.1, 0.7, shelfMat, -5.7, 1.5, -4.95));
-  world.add(box(2.9, 0.1, 0.7, shelfMat, -5.7, 2.6, -4.95));
-  world.add(box(0.1, 2.4, 0.7, std(WOOD, 0.85), -7.1, 1.9, -4.95, false));
-  world.add(box(0.1, 2.4, 0.7, std(WOOD, 0.85), -4.3, 1.9, -4.95, false));
+  world.add(box(3.9, 0.1, 0.7, shelfMat, -5.7, 1.5, -4.95));
+  world.add(box(3.9, 0.1, 0.7, shelfMat, -5.7, 2.6, -4.95));
+  world.add(box(3.9, 0.1, 0.7, shelfMat, -5.7, 3.7, -4.95));
+  world.add(box(0.1, 3.4, 0.7, std(WOOD, 0.85), -7.65, 2.6, -4.95, false));
+  world.add(box(0.1, 3.4, 0.7, std(WOOD, 0.85), -3.75, 2.6, -4.95, false));
   const binMeshes = [];
-  for (const bin of PANTRY_BINS) {
+  for (const bin of [...PANTRY_BINS, ...FRIDGE_BINS]) {
     const crate = box(0.78, 0.34, 0.6, std(0x8a5a2e, 0.85), bin.pos.x, bin.pos.y - 0.1, bin.pos.z);
     world.add(crate);
     const sample = makeIngredient(bin.ing, 'raw', 0.85);
@@ -311,6 +329,23 @@ export function buildWorld(container) {
     world.add(sample);
     binMeshes.push({ ing: bin.ing, crate, sample });
   }
+
+  // --- The fridge (kulkas): a big two-door unit on the right wall, with
+  // two display shelves on its front holding the cold ingredients.
+  const fridgeMat = std(0xdfe8ec, 0.35, 0.55);
+  world.add(box(1.7, 2.7, 1.0, fridgeMat, 7.9, 1.35, -4.4));
+  world.add(box(1.74, 0.06, 1.02, std(0x9fb4bc, 0.4, 0.6), 7.9, 2.62, -4.4, false)); // top cap
+  world.add(box(1.7, 0.05, 0.04, std(0x5d6b73, 0.5, 0.5), 7.9, 1.95, -3.88, false)); // door seam
+  // Door handles on the fridge's right side (clear of the front shelves).
+  world.add(cyl(0.035, 0.035, 0.55, std(0x5d6b73, 0.4, 0.7), 8.78, 2.3, -4.4, 8));
+  world.add(cyl(0.035, 0.035, 0.75, std(0x5d6b73, 0.4, 0.7), 8.78, 1.15, -4.4, 8));
+  // Colourful magnets on the freezer door.
+  for (const [mx, my, mc] of [[7.35, 2.35, 0xd93a2b], [7.6, 2.42, 0xf2c94c], [7.5, 2.2, 0x4caf50]]) {
+    world.add(cyl(0.05, 0.05, 0.03, std(mc, 0.5), mx, my, -3.88, 10));
+  }
+  // Display shelves on the fridge front for the cold bins.
+  world.add(box(1.5, 0.06, 0.5, std(WOOD_TOP, 0.8), 7.9, 1.35, -3.75));
+  world.add(box(1.5, 0.06, 0.5, std(WOOD_TOP, 0.8), 7.9, 2.45, -3.75));
 
   // Rice sacks by the pantry.
   for (const [x, z] of [[-7.6, -3.4], [-6.9, -3.1]]) {
@@ -363,6 +398,10 @@ export function buildWorld(container) {
     world.add(cord, shade, bulb);
   }
 
+  // --- Chef Sari, the head cook: presentational only, never game logic.
+  const chef = createChef();
+  world.add(chef.group);
+
   // --- Steam jets: wok, fryer, and a gentle one over the plate.
   const steams = [
     makeSteam(new THREE.Vector3(0.2, 1.75, -3.6), 16, 0xffffff, 0.25, 1.6),
@@ -406,7 +445,10 @@ export function buildWorld(container) {
   // Hit boxes are tall on purpose: they reach up through the floating
   // station labels, so clicking a label hits its own station. (The label
   // anchor sits inside its station's box.)
-  for (const bin of PANTRY_BINS) addHit('pantry', bin.ing, bin.pos.x, bin.pos.y, bin.pos.z, 0.88, 1.2, 1.0);
+  // Bin hit boxes are 1.0 tall: the three pantry rows are 1.1 apart, so
+  // a taller box would let one row steal clicks from its neighbour.
+  for (const bin of PANTRY_BINS) addHit('pantry', bin.ing, bin.pos.x, bin.pos.y, bin.pos.z, 0.88, 1.0, 1.0);
+  for (const bin of FRIDGE_BINS) addHit('fridge', bin.ing, bin.pos.x, bin.pos.y, bin.pos.z, 0.88, 1.0, 1.0);
   addHit('board', null, -2.6, 1.95, -3.6, 1.6, 2.4, 1.6);
   addHit('wok', null, 0.2, 1.95, -3.6, 2.0, 2.4, 1.6);
   addHit('fryer', null, 2.9, 1.95, -3.6, 1.9, 2.4, 1.6);
@@ -484,6 +526,7 @@ export function buildWorld(container) {
   }
 
   function update(dt, t, game) {
+    chef.update(dt, t, game);
     for (const s of steams) s.update(t);
     flames.forEach((f, i) => {
       const flick = 0.82 + 0.22 * Math.sin(t * 13 + i * 2.1) + 0.08 * Math.sin(t * 29 + i);
@@ -514,7 +557,7 @@ export function buildWorld(container) {
   window.addEventListener('resize', resize);
 
   return {
-    renderer, scene, camera, hitMeshes, hoverRing, selectRing,
+    renderer, scene, camera, hitMeshes, hoverRing, selectRing, chef,
     update, resize, sync,
     project(vec) {
       const v = vec.clone().project(camera);

@@ -151,13 +151,167 @@ function burntLump() {
   return shadowed(g);
 }
 
+function fishShape(cooked) {
+  const g = new THREE.Group();
+  const bodyCol = cooked ? 0xb98a4a : 0x9fc4d8;
+  const bellyCol = cooked ? 0x8a6a30 : 0xd8ecf2;
+  const body = mesh(new THREE.SphereGeometry(0.26, 20, 14), bodyCol, 0.55);
+  body.scale.set(1.5, 0.55, 0.7);
+  body.position.y = 0.16;
+  const belly = mesh(new THREE.SphereGeometry(0.2, 16, 12), bellyCol, 0.6);
+  belly.scale.set(1.3, 0.4, 0.6);
+  belly.position.set(0, 0.1, 0);
+  const tail = mesh(new THREE.ConeGeometry(0.16, 0.3, 4), cooked ? 0x8a6a30 : 0x5b8296, 0.6);
+  tail.rotation.z = -Math.PI / 2;
+  tail.scale.set(1, 1, 0.4);
+  tail.position.set(-0.48, 0.16, 0);
+  const fin = mesh(new THREE.ConeGeometry(0.09, 0.2, 4), cooked ? 0x8a6a30 : 0x5b8296, 0.6);
+  fin.position.set(0.05, 0.32, 0);
+  fin.scale.set(1, 1, 0.35);
+  const eye = mesh(new THREE.SphereGeometry(0.035, 8, 6), 0x1c1512, 0.4);
+  eye.position.set(0.3, 0.2, 0.14);
+  g.add(body, belly, tail, fin, eye);
+  return shadowed(g);
+}
+
+function tofuShape(cooked) {
+  const g = new THREE.Group();
+  const col = cooked ? 0xd9a85f : 0xfdf6e0;
+  const cube = mesh(new THREE.BoxGeometry(0.42, 0.24, 0.34), col, 0.7);
+  cube.position.y = 0.12;
+  cube.rotation.y = 0.3;
+  const cube2 = mesh(new THREE.BoxGeometry(0.34, 0.2, 0.28), cooked ? 0xc08d3e : 0xf2ead0, 0.7);
+  cube2.position.set(0.1, 0.32, -0.06);
+  cube2.rotation.y = -0.4;
+  g.add(cube, cube2);
+  return shadowed(g);
+}
+
+function tempehShape(cooked) {
+  const g = new THREE.Group();
+  const col = cooked ? 0x9a6a30 : 0xd9b380;
+  const block = mesh(new THREE.BoxGeometry(0.5, 0.2, 0.32), col, 0.8);
+  block.position.y = 0.1;
+  block.rotation.y = 0.25;
+  g.add(block);
+  // Fermentation speckles: little dark dots on top.
+  for (const [x, z] of [[-0.14, 0.05], [0.02, -0.08], [0.15, 0.06], [-0.02, 0.1]]) {
+    const dot = mesh(new THREE.SphereGeometry(0.035, 8, 6), cooked ? 0x5d3a1e : 0x8a6a42, 0.9);
+    dot.position.set(x, 0.21, z);
+    g.add(dot);
+  }
+  return shadowed(g);
+}
+
+function beefShape(cooked) {
+  const g = new THREE.Group();
+  const col = cooked ? 0x7c4a20 : 0xb03a30;
+  const steak = mesh(new THREE.SphereGeometry(0.28, 18, 12), col, 0.55);
+  steak.scale.set(1.25, 0.4, 0.95);
+  steak.position.y = 0.11;
+  const fat = mesh(new THREE.BoxGeometry(0.5, 0.04, 0.1), 0xf2e2c8, 0.6);
+  fat.position.set(0, 0.2, 0.12);
+  fat.rotation.y = 0.4;
+  g.add(steak, fat);
+  return shadowed(g);
+}
+
+function potatoShape() {
+  const g = new THREE.Group();
+  const tuber = mesh(new THREE.SphereGeometry(0.24, 16, 12), 0xd9a85f, 0.9);
+  tuber.scale.set(1.25, 0.8, 0.95);
+  tuber.position.y = 0.18;
+  const eye1 = mesh(new THREE.SphereGeometry(0.035, 8, 6), 0x8a6a30, 0.9);
+  eye1.position.set(0.14, 0.3, 0.16);
+  const eye2 = mesh(new THREE.SphereGeometry(0.03, 8, 6), 0x8a6a30, 0.9);
+  eye2.position.set(-0.18, 0.22, 0.14);
+  g.add(tuber, eye1, eye2);
+  return shadowed(g);
+}
+
+function carrotShape() {
+  const g = new THREE.Group();
+  const root = mesh(new THREE.ConeGeometry(0.13, 0.52, 14), 0xe86a1c, 0.6);
+  root.rotation.z = Math.PI / 2.3;
+  root.position.set(0.05, 0.14, 0);
+  for (let i = 0; i < 3; i += 1) {
+    const leaf = mesh(new THREE.ConeGeometry(0.045, 0.26, 8), 0x2e7d32, 0.7);
+    leaf.position.set(-0.2, 0.32 + i * 0.02, (i - 1) * 0.07);
+    leaf.rotation.z = -0.4 - i * 0.25;
+    g.add(leaf);
+  }
+  g.add(root);
+  return shadowed(g);
+}
+
+function tomatoShape() {
+  const g = new THREE.Group();
+  const body = mesh(new THREE.SphereGeometry(0.24, 18, 14), 0xe8442e, 0.4);
+  body.scale.set(1, 0.85, 1);
+  body.position.y = 0.2;
+  const star = mesh(new THREE.ConeGeometry(0.09, 0.08, 5), 0x2e7d32, 0.7);
+  star.position.set(0, 0.4, 0);
+  const stem = mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.12, 8), 0x2e7d32, 0.7);
+  stem.position.set(0, 0.44, 0);
+  g.add(body, star, stem);
+  return shadowed(g);
+}
+
+function onionShape() {
+  const g = new THREE.Group();
+  const bulb = mesh(new THREE.SphereGeometry(0.23, 18, 14), 0xe8d8f0, 0.5);
+  bulb.scale.set(1, 1.05, 1);
+  bulb.position.y = 0.22;
+  const skin = mesh(new THREE.SphereGeometry(0.2, 16, 12), 0xc9a8d8, 0.55);
+  skin.scale.set(1, 0.9, 1);
+  skin.position.set(0.02, 0.24, 0);
+  const sprout = mesh(new THREE.ConeGeometry(0.05, 0.2, 8), 0x66bb6a, 0.7);
+  sprout.position.set(0, 0.5, 0);
+  g.add(bulb, skin, sprout);
+  return shadowed(g);
+}
+
+function milkShape() {
+  const g = new THREE.Group();
+  const carton = mesh(new THREE.BoxGeometry(0.32, 0.42, 0.32), 0xffffff, 0.4);
+  carton.position.y = 0.21;
+  const band = mesh(new THREE.BoxGeometry(0.34, 0.12, 0.34), 0x4a90d9, 0.4);
+  band.position.y = 0.24;
+  const top = mesh(new THREE.CylinderGeometry(0.16, 0.23, 0.16, 4), 0xd8ecf2, 0.4);
+  top.position.y = 0.5;
+  top.rotation.y = Math.PI / 4;
+  const cap = mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.06, 10), 0x4a90d9, 0.4);
+  cap.position.y = 0.6;
+  g.add(carton, band, top, cap);
+  return shadowed(g);
+}
+
+function fruitShape() {
+  const g = new THREE.Group();
+  // A banana: a curved yellow arc with a brown tip.
+  const curve = mesh(new THREE.TorusGeometry(0.22, 0.075, 10, 20, 2.4), 0xf2c94c, 0.5);
+  curve.rotation.z = Math.PI * 0.85;
+  curve.position.y = 0.16;
+  const tip = mesh(new THREE.SphereGeometry(0.06, 8, 6), 0x7c5a2e, 0.7);
+  tip.position.set(0.28, 0.1, 0);
+  const stem = mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.14, 8), 0x8a6a42, 0.7);
+  stem.position.set(-0.22, 0.3, 0);
+  stem.rotation.z = 0.5;
+  g.add(curve, tip, stem);
+  return shadowed(g);
+}
+
 // Build one ingredient in a given state: 'raw' | 'chopped' | 'cooked' | 'burnt'.
 // `scale` shrinks the piece for plate/pantry display.
 export function makeIngredient(ing, state, scale) {
   let group;
   if (state === 'burnt') group = burntLump();
   else if (state === 'chopped') {
-    const cols = { chili: [0xd93a2b, 0x8f1f14], veg: [0x4caf50, 0x2e7d32] };
+    const cols = {
+      chili: [0xd93a2b, 0x8f1f14], veg: [0x4caf50, 0x2e7d32],
+      potato: [0xd9a85f, 0xa87c3a], carrot: [0xe86a1c, 0xb34a10],
+      tomato: [0xe8442e, 0xa82a1a], onion: [0xe8d8f0, 0xb08ac0],
+    };
     const c = cols[ing] || [0xe8cfa8, 0xcbb98f];
     group = choppedPile(c[0], c[1]);
   } else if (ing === 'rice') group = riceBowl();
@@ -165,6 +319,16 @@ export function makeIngredient(ing, state, scale) {
   else if (ing === 'chicken') group = chickenDrum(state === 'cooked');
   else if (ing === 'egg') group = eggShape(state === 'cooked');
   else if (ing === 'chili') group = chiliShape();
+  else if (ing === 'fish') group = fishShape(state === 'cooked');
+  else if (ing === 'tofu') group = tofuShape(state === 'cooked');
+  else if (ing === 'tempeh') group = tempehShape(state === 'cooked');
+  else if (ing === 'beef') group = beefShape(state === 'cooked');
+  else if (ing === 'potato') group = potatoShape();
+  else if (ing === 'carrot') group = carrotShape();
+  else if (ing === 'tomato') group = tomatoShape();
+  else if (ing === 'onion') group = onionShape();
+  else if (ing === 'milk') group = milkShape();
+  else if (ing === 'fruit') group = fruitShape();
   else group = vegShape();
   if (scale && scale !== 1) group.scale.setScalar(scale);
   return group;

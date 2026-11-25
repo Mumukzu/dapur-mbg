@@ -1,5 +1,5 @@
 // Dapur MBG — mouse and keyboard input, translated into game intents.
-// The game is fully playable with the mouse alone; keys 1-6 pick a station,
+// The game is fully playable with the mouse alone; keys 1-7 pick a station,
 // Space uses the picked station, P pauses, M mutes. Clicks arrive as
 // client coordinates and are raycast by kitchen3d, so the input module
 // never needs to know where the 3D stations sit on screen.
@@ -11,7 +11,7 @@ export function createInput() {
     // Clicks waiting to be consumed, in order: [{ x, y }, ...].
     // A queue (not a single slot) so fast clicks never overwrite each other.
     clicks: [],
-    // The station id picked by keys 1-6, or null.
+    // The station id picked by keys 1-7, or null.
     selected: null,
     // One-shot action flags, set by keydown and cleared by the game.
     useSelected: false,
@@ -29,8 +29,8 @@ export function createInput() {
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return;
     const key = event.key.toLowerCase();
-    if (key >= '1' && key <= '6') {
-      input.selected = ['pantry', 'board', 'wok', 'fryer', 'plate', 'serve'][Number(key) - 1];
+    if (key >= '1' && key <= '7') {
+      input.selected = ['pantry', 'board', 'wok', 'fryer', 'plate', 'serve', 'fridge'][Number(key) - 1];
     } else if (key === ' ' || key === 'enter') {
       input.useSelected = true;
       event.preventDefault();

@@ -26,6 +26,7 @@ const game = createGame();
 game.board = createOrderBoard();
 // Exposed for automated playtests and debugging only.
 window.__dapurGame = game;
+window.__dapurChef = world.chef;
 window.__dapurAnchors = picker.anchors;
 window.__dapurPicker = picker;
 window.__dapurInput = input;
