@@ -5,14 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dapur MBG — Free Nutritious Meals Kitchen</title>
 <link rel="icon" href="data:,">
-<style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #2b1a0e; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-</style>
+<link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
-<canvas id="game" aria-label="Dapur MBG: cook nutritious meal boxes and serve them before the timer runs out"></canvas>
+<div id="stage"></div>
+
+<div id="hud" aria-hidden="false">
+  <header id="topbar">
+    <div class="brand">🍳 DAPUR MBG <span>Free Nutritious Meals</span></div>
+    <div class="shift-wrap">
+      <div class="shift-label"><span id="shift-text">2:30</span><span id="day-text">Day 1 · Level 1</span></div>
+      <div class="shift-bar"><div id="shift-fill"></div></div>
+    </div>
+    <div class="stats">
+      <div class="stat">Score <b id="score">0</b></div>
+      <div class="stat">Coins <b id="coins">0</b> 🪙</div>
+      <div class="stat">Combo <b id="combo">x1.0</b></div>
+      <div class="stat">Lost <b id="lost">0/3</b></div>
+      <button id="mute-btn" type="button" title="Mute (M)">🔊</button>
+      <button id="pause-btn" type="button" title="Pause (P)">⏸</button>
+    </div>
+  </header>
+
+  <div id="orders" aria-label="Order board"></div>
+  <div id="msg" class="hidden"></div>
+  <div id="hand-chip">Hands empty — grab an ingredient from the pantry</div>
+  <div id="floats"></div>
+  <div id="labels"></div>
+</div>
+
+<div id="screen-title" class="screen">
+  <div class="panel">
+    <h1>DAPUR MBG</h1>
+    <p class="tagline">Free Nutritious Meals — Kitchen Rush</p>
+    <p class="intro">Cook fresh meal boxes for the kids before the tickets run out.
+      Grab ingredients, chop, cook, plate and serve — don't let 3 orders expire!</p>
+    <div class="howto">
+      <div><b>1 · PANTRY</b> Click an ingredient bin to grab it</div>
+      <div><b>2 · CHOP BOARD</b> Chop chili &amp; veggies (click again to speed up)</div>
+      <div><b>3 · WOK / 4 · FRYER</b> Cook noodles &amp; eggs in the wok, chicken in the fryer — grab before it burns!</div>
+      <div><b>5 · PLATE</b> Build the dish to match a ticket</div>
+      <div><b>6 · SERVE</b> Serve the finished plate for coins</div>
+    </div>
+    <p class="keys">Mouse plays alone · Keys <b>1–6</b> pick a station, <b>Space</b> uses it, <b>P</b> pause, <b>M</b> mute</p>
+    <button id="start-btn" type="button">▶ START SHIFT</button>
+    <p class="best">Best score: <b id="best-title">0</b> · Shift: 150 seconds · 3 lost orders ends the day</p>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen hidden">
+  <div class="panel">
+    <h1>PAUSED</h1>
+    <p class="intro">The kitchen is waiting. The tickets are not.</p>
+    <button id="resume-btn" type="button">▶ RESUME</button>
+  </div>
+</div>
+
+<div id="screen-over" class="screen hidden">
+  <div class="panel">
+    <h1>SHIFT OVER</h1>
+    <p class="intro">Three orders were lost. The kids will wait for tomorrow.</p>
+    <p class="final">Score <b id="final-score">0</b> · Served <b id="final-served">0</b> · Best <b id="final-best">0</b></p>
+    <button id="retry-btn" type="button">↻ COOK AGAIN</button>
+  </div>
+</div>
+
+<div id="screen-complete" class="screen hidden">
+  <div class="panel">
+    <h1>DAY COMPLETE! 🎉</h1>
+    <p class="intro">You survived the whole shift. Every meal box found a happy kid.</p>
+    <p class="final">Score <b id="complete-score">0</b> · Served <b id="complete-served">0</b> · Best <b id="complete-best">0</b></p>
+    <button id="again-btn" type="button">▶ NEXT DAY</button>
+  </div>
+</div>
+
 <p id="status" role="status" aria-live="polite"></p>
 <script type="module" src="./src/main.js"></script>
 </body>

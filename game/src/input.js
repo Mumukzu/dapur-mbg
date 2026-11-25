@@ -1,13 +1,16 @@
 // Dapur MBG — mouse and keyboard input, translated into game intents.
 // The game is fully playable with the mouse alone; keys 1-6 pick a station,
-// Space uses the picked station, P pauses, M mutes.
+// Space uses the picked station, P pauses, M mutes. Clicks arrive as
+// client coordinates and are raycast by kitchen3d, so the input module
+// never needs to know where the 3D stations sit on screen.
 
-export function createInput(canvas) {
+export function createInput() {
   const input = {
-    mouseX: 0,
-    mouseY: 0,
-    // A click waiting to be consumed by the update step: { x, y } or null.
-    click: null,
+    mouseX: null,
+    mouseY: null,
+    // Clicks waiting to be consumed, in order: [{ x, y }, ...].
+    // A queue (not a single slot) so fast clicks never overwrite each other.
+    clicks: [],
     // The station id picked by keys 1-6, or null.
     selected: null,
     // One-shot action flags, set by keydown and cleared by the game.
@@ -18,25 +21,9 @@ export function createInput(canvas) {
     startPressed: false,
   };
 
-  function toLogical(event) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * 1280,
-      y: ((event.clientY - rect.top) / rect.height) * 720,
-    };
-  }
-
-  canvas.addEventListener('pointermove', (event) => {
-    const p = toLogical(event);
-    input.mouseX = p.x;
-    input.mouseY = p.y;
-  });
-
-  canvas.addEventListener('pointerdown', (event) => {
-    const p = toLogical(event);
-    input.mouseX = p.x;
-    input.mouseY = p.y;
-    input.click = { x: p.x, y: p.y };
+  window.addEventListener('pointermove', (event) => {
+    input.mouseX = event.clientX;
+    input.mouseY = event.clientY;
   });
 
   window.addEventListener('keydown', (event) => {
@@ -53,14 +40,8 @@ export function createInput(canvas) {
       input.mutePressed = true;
     } else if (key === 'r') {
       input.restartPressed = true;
-    } else if (key === 'enter' && event.shiftKey) {
-      input.startPressed = true;
     }
   });
 
   return input;
-}
-
-export function pointInRect(x, y, rect) {
-  return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
 }
