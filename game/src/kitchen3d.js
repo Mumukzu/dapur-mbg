@@ -11,7 +11,7 @@ import { FRIDGE_BINS, PANTRY_BINS, STATION_POS } from './scene3d.js';
 
 const LABELS = {
   pantry: { key: '1', name: 'PANTRY', anchor: new THREE.Vector3(-7.9, 3.2, -4.7), lift: 0.4 },
-  fridge: { key: '7', name: 'FRIDGE', anchor: STATION_POS.fridge, lift: 0.8 },
+  fridge: { key: '7', name: 'FRIDGE', anchor: STATION_POS.fridge, lift: 2.0 },
   board: { key: '2', name: 'CHOP BOARD', anchor: STATION_POS.board, lift: 1.5 },
   wok: { key: '3', name: 'WOK', anchor: STATION_POS.wok, lift: 1.9 },
   fryer: { key: '4', name: 'FRYER', anchor: STATION_POS.fryer, lift: 1.9 },

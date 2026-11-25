@@ -1,13 +1,13 @@
 // Dapur MBG — the 3D kitchen itself, built from primitives in Three.js.
-// A fixed 3/4 view over a warm street kitchen: tiled floor, terracotta
-// back wall, a back counter (chop board, wok stove, fryer), pantry shelves
-// with the six ingredient bins, a front island (plating + serve hatch),
-// and a trash bin. Flames flicker over the wok, steam rises from every
+// A fixed 3/4 view over a bright sunny kitchen: pale cream tiled floor,
+// soft sky-blue walls with a teal wainscot, a back counter (chop board,
+// wok stove, fryer), pantry shelves with the six ingredient bins, a front
+// island (plating + serve hatch), and a trash bin. Flames flicker over the wok, steam rises from every
 // hot pot, and the key light casts real shadows across the floor.
 //
 // Station world positions (x right, y up, z toward the camera):
 //   pantry (-5.7, wall shelves) · board (-2.6) · wok (0.2) · fryer (2.9)
-//   plate (-1.3, island) · serve (2.4, island) · fridge (7.9, right wall)
+//   plate (-1.3, island) · serve (2.4, island) · fridge (6.9, back wall right)
 //   trash (5.2)
 
 import * as THREE from '../vendor/three.module.min.js';
@@ -21,7 +21,7 @@ export const STATION_POS = {
   fryer: new THREE.Vector3(2.9, 1.12, -3.6),
   plate: new THREE.Vector3(-1.3, 1.12, 0.4),
   serve: new THREE.Vector3(2.4, 1.12, 0.4),
-  fridge: new THREE.Vector3(7.9, 2.2, -4.4),
+  fridge: new THREE.Vector3(6.9, 2.2, -4.3),
   trash: new THREE.Vector3(5.2, 0.7, 0.8),
 };
 
@@ -43,14 +43,14 @@ export const PANTRY_BINS = [
 
 // Fridge bin slots: cold goods on two shelves on the fridge's front.
 export const FRIDGE_BINS = [
-  { ing: 'fish', pos: new THREE.Vector3(7.35, 1.62, -3.8) },
-  { ing: 'tofu', pos: new THREE.Vector3(8.45, 1.62, -3.8) },
-  { ing: 'milk', pos: new THREE.Vector3(7.35, 2.72, -3.8) },
-  { ing: 'fruit', pos: new THREE.Vector3(8.45, 2.72, -3.8) },
+  { ing: 'fish', pos: new THREE.Vector3(6.35, 1.62, -3.8) },
+  { ing: 'tofu', pos: new THREE.Vector3(7.45, 1.62, -3.8) },
+  { ing: 'milk', pos: new THREE.Vector3(6.35, 2.72, -3.8) },
+  { ing: 'fruit', pos: new THREE.Vector3(7.45, 2.72, -3.8) },
 ];
 
-const WOOD = 0x7d5230;
-const WOOD_TOP = 0xa4713e;
+const WOOD = 0xa87c42;
+const WOOD_TOP = 0xd2a25e;
 const STEEL = 0xc9ced6;
 
 function std(color, rough, metal) {
@@ -79,9 +79,9 @@ function floorTexture() {
   const g = c.getContext('2d');
   for (let y = 0; y < 4; y += 1) {
     for (let x = 0; x < 4; x += 1) {
-      g.fillStyle = (x + y) % 2 ? '#dfc193' : '#e8cfa8';
+      g.fillStyle = (x + y) % 2 ? '#f0d9a8' : '#fbf0cf';
       g.fillRect(x * 64, y * 64, 64, 64);
-      g.strokeStyle = 'rgba(120, 80, 40, 0.25)';
+      g.strokeStyle = 'rgba(160, 120, 60, 0.18)';
       g.strokeRect(x * 64 + 0.5, y * 64 + 0.5, 63, 63);
     }
   }
@@ -111,6 +111,36 @@ function signTexture(text, sub) {
   g.fillStyle = '#fff6e8';
   g.font = '700 26px system-ui, sans-serif';
   g.fillText(sub, 256, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// A frosty badge for the freezer door: a snowflake drawn with lines plus
+// the word FREEZER, painted at runtime.
+function freezerBadgeTexture() {
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 128;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 320, 128);
+  g.strokeStyle = '#2f8fb5';
+  g.lineWidth = 7;
+  g.lineCap = 'round';
+  const cx = 44;
+  const cy = 64;
+  for (let i = 0; i < 3; i += 1) {
+    const a = (i * Math.PI) / 3;
+    g.beginPath();
+    g.moveTo(cx - Math.cos(a) * 30, cy - Math.sin(a) * 30);
+    g.lineTo(cx + Math.cos(a) * 30, cy + Math.sin(a) * 30);
+    g.stroke();
+  }
+  g.fillStyle = '#1f6f8f';
+  g.font = '900 40px system-ui, sans-serif';
+  g.textAlign = 'left';
+  g.textBaseline = 'middle';
+  g.fillText('FREEZER', 84, 66);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
@@ -174,21 +204,21 @@ export function buildWorld(container) {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.15;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x2b1a0e);
-  scene.fog = new THREE.Fog(0x2b1a0e, 22, 34);
+  scene.background = new THREE.Color(0xd6ecf5);
+  scene.fog = new THREE.Fog(0xd6ecf5, 22, 34);
 
   const camera = new THREE.PerspectiveCamera(52, container.clientWidth / container.clientHeight, 0.1, 60);
   camera.position.set(0, 6.2, 8.6);
   camera.lookAt(0, 1.0, -3.0);
 
   // --- Lights: warm key sun through the window, soft fill, hot wok glow.
-  const hemi = new THREE.HemisphereLight(0xfff2d8, 0x5d3a1e, 0.85);
+  const hemi = new THREE.HemisphereLight(0xfff2d8, 0xe8cfa8, 1.0);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffe0a8, 2.1);
+  const sun = new THREE.DirectionalLight(0xffe0a8, 2.3);
   sun.position.set(6, 10, 6);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -209,19 +239,19 @@ export function buildWorld(container) {
   const world = new THREE.Group();
   scene.add(world);
 
-  // --- Room: floor, terracotta back wall, cream wainscot, side walls.
+  // --- Room: floor, soft sky-blue back wall, light teal wainscot, side walls.
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(20, 14), new THREE.MeshStandardMaterial({ map: floorTexture(), roughness: 0.9 }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.set(0, 0, -1);
   floor.receiveShadow = true;
   world.add(floor);
-  const backWall = box(20, 7, 0.3, std(0xb4552d, 0.95), 0, 3.5, -5.6, false);
+  const backWall = box(20, 7, 0.3, std(0xa5d8e8, 0.95), 0, 3.5, -5.6, false);
   backWall.castShadow = false;
   world.add(backWall);
-  world.add(box(20, 1.6, 0.34, std(0x8f3d1f, 0.95), 0, 0.8, -5.58, false));
-  const leftWall = box(0.3, 7, 14, std(0x9c4a28, 0.95), -9.2, 3.5, -1, false);
+  world.add(box(20, 1.6, 0.34, std(0x7fd1c0, 0.95), 0, 0.8, -5.58, false));
+  const leftWall = box(0.3, 7, 14, std(0xc2e6f2, 0.95), -9.2, 3.5, -1, false);
   leftWall.castShadow = false;
-  const rightWall = box(0.3, 7, 14, std(0x9c4a28, 0.95), 9.2, 3.5, -1, false);
+  const rightWall = box(0.3, 7, 14, std(0xc2e6f2, 0.95), 9.2, 3.5, -1, false);
   rightWall.castShadow = false;
   world.add(leftWall, rightWall);
 
@@ -232,15 +262,15 @@ export function buildWorld(container) {
   );
   sign.position.set(0, 4.6, -5.42);
   world.add(sign);
-  const winFrame = box(2.4, 2.0, 0.12, std(0x5d3a1e, 0.8), 6.2, 3.6, -5.45, false);
+  const winFrame = box(2.4, 2.0, 0.12, std(0x5d3a1e, 0.8), 4.4, 3.6, -5.45, false);
   const winGlass = new THREE.Mesh(
     new THREE.PlaneGeometry(2.1, 1.7),
     new THREE.MeshBasicMaterial({ color: 0xbfe3ff }),
   );
-  winGlass.position.set(6.2, 3.6, -5.38);
+  winGlass.position.set(4.4, 3.6, -5.38);
   world.add(winFrame, winGlass);
-  world.add(box(0.06, 1.7, 0.05, std(0x5d3a1e, 0.8), 6.2, 3.6, -5.36, false));
-  world.add(box(2.1, 0.06, 0.05, std(0x5d3a1e, 0.8), 6.2, 3.6, -5.36, false));
+  world.add(box(0.06, 1.7, 0.05, std(0x5d3a1e, 0.8), 4.4, 3.6, -5.36, false));
+  world.add(box(2.1, 0.06, 0.05, std(0x5d3a1e, 0.8), 4.4, 3.6, -5.36, false));
 
   // Hanging pans on the back wall (up high, clear of the pantry's top row).
   for (let i = 0; i < 3; i += 1) {
@@ -322,7 +352,7 @@ export function buildWorld(container) {
   world.add(box(0.1, 3.4, 0.7, std(WOOD, 0.85), -3.75, 2.6, -4.95, false));
   const binMeshes = [];
   for (const bin of [...PANTRY_BINS, ...FRIDGE_BINS]) {
-    const crate = box(0.78, 0.34, 0.6, std(0x8a5a2e, 0.85), bin.pos.x, bin.pos.y - 0.1, bin.pos.z);
+    const crate = box(0.78, 0.34, 0.6, std(0xb98a4e, 0.85), bin.pos.x, bin.pos.y - 0.1, bin.pos.z);
     world.add(crate);
     const sample = makeIngredient(bin.ing, 'raw', 0.85);
     sample.position.copy(bin.pos).add(new THREE.Vector3(0, 0.12, 0));
@@ -330,22 +360,45 @@ export function buildWorld(container) {
     binMeshes.push({ ing: bin.ing, crate, sample });
   }
 
-  // --- The fridge (kulkas): a big two-door unit on the right wall, with
-  // two display shelves on its front holding the cold ingredients.
-  const fridgeMat = std(0xdfe8ec, 0.35, 0.55);
-  world.add(box(1.7, 2.7, 1.0, fridgeMat, 7.9, 1.35, -4.4));
-  world.add(box(1.74, 0.06, 1.02, std(0x9fb4bc, 0.4, 0.6), 7.9, 2.62, -4.4, false)); // top cap
-  world.add(box(1.7, 0.05, 0.04, std(0x5d6b73, 0.5, 0.5), 7.9, 1.95, -3.88, false)); // door seam
-  // Door handles on the fridge's right side (clear of the front shelves).
-  world.add(cyl(0.035, 0.035, 0.55, std(0x5d6b73, 0.4, 0.7), 8.78, 2.3, -4.4, 8));
-  world.add(cyl(0.035, 0.035, 0.75, std(0x5d6b73, 0.4, 0.7), 8.78, 1.15, -4.4, 8));
-  // Colourful magnets on the freezer door.
-  for (const [mx, my, mc] of [[7.35, 2.35, 0xd93a2b], [7.6, 2.42, 0xf2c94c], [7.5, 2.2, 0x4caf50]]) {
-    world.add(cyl(0.05, 0.05, 0.03, std(mc, 0.5), mx, my, -3.88, 10));
+  // --- The fridge (kulkas): a big tall white double-door unit against the
+  // back wall, freezer compartment on top with its own door and handle,
+  // two long vertical door handles, colourful magnets, a FREEZER badge,
+  // and two steel shelves on its front holding the cold ingredients.
+  // Cold air mist drifts from its base (see the steams list below).
+  const fridgeMat = std(0xeef3f5, 0.35, 0.35);
+  world.add(box(2.4, 3.9, 1.1, fridgeMat, 6.9, 1.95, -4.45));
+  world.add(box(2.44, 0.08, 1.12, std(0x9fb4bc, 0.4, 0.6), 6.9, 3.92, -4.45, false)); // top cap
+  // Freezer door on top (icy blue panel) with a horizontal handle bar.
+  world.add(box(2.3, 0.85, 0.06, std(0xdceef7, 0.35, 0.3), 6.9, 3.42, -3.88, false));
+  const freezerHandle = cyl(0.035, 0.035, 1.0, std(0x5d6b73, 0.4, 0.7), 6.9, 3.04, -3.82, 8);
+  freezerHandle.rotation.z = Math.PI / 2;
+  world.add(freezerHandle);
+  const badge = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.25, 0.5),
+    new THREE.MeshBasicMaterial({ map: freezerBadgeTexture(), transparent: true }),
+  );
+  badge.position.set(6.9, 3.48, -3.84);
+  world.add(badge);
+  // Main double doors below: two white panels with a centre seam and a
+  // horizontal seam under the freezer.
+  world.add(box(1.12, 2.85, 0.06, std(0xf7fbfc, 0.35, 0.35), 6.32, 1.47, -3.88, false));
+  world.add(box(1.12, 2.85, 0.06, std(0xf7fbfc, 0.35, 0.35), 7.48, 1.47, -3.88, false));
+  world.add(box(0.04, 2.85, 0.03, std(0x5d6b73, 0.5, 0.5), 6.9, 1.47, -3.86, false)); // centre seam
+  world.add(box(2.3, 0.05, 0.03, std(0x5d6b73, 0.5, 0.5), 6.9, 2.95, -3.86, false)); // freezer seam
+  // Long vertical door handles on the outer edges (clear of the shelves).
+  world.add(cyl(0.04, 0.04, 1.7, std(0x5d6b73, 0.4, 0.7), 5.86, 1.6, -3.74, 8));
+  world.add(cyl(0.04, 0.04, 1.7, std(0x5d6b73, 0.4, 0.7), 7.94, 1.6, -3.74, 8));
+  // Colourful magnets on the freezer door, left of the badge.
+  for (const [mx, my, mc] of [[5.95, 3.55, 0xd93a2b], [6.15, 3.68, 0xf2c94c], [6.05, 3.32, 0x4caf50]]) {
+    world.add(cyl(0.05, 0.05, 0.03, std(mc, 0.5), mx, my, -3.84, 10));
   }
-  // Display shelves on the fridge front for the cold bins.
-  world.add(box(1.5, 0.06, 0.5, std(WOOD_TOP, 0.8), 7.9, 1.35, -3.75));
-  world.add(box(1.5, 0.06, 0.5, std(WOOD_TOP, 0.8), 7.9, 2.45, -3.75));
+  // Steel shelves on the fridge front for the cold bins.
+  world.add(box(2.1, 0.06, 0.5, std(STEEL, 0.4, 0.6), 6.9, 1.35, -3.75));
+  world.add(box(2.1, 0.06, 0.5, std(STEEL, 0.4, 0.6), 6.9, 2.45, -3.75));
+  // A faint cold blue glow in front of the fridge.
+  const fridgeLight = new THREE.PointLight(0xbfe3ff, 3, 3.5, 1.8);
+  fridgeLight.position.set(6.9, 2.0, -3.3);
+  scene.add(fridgeLight);
 
   // Rice sacks by the pantry.
   for (const [x, z] of [[-7.6, -3.4], [-6.9, -3.1]]) {
@@ -391,7 +444,7 @@ export function buildWorld(container) {
   for (const x of [-1.3, 2.4]) {
     const cord = cyl(0.02, 0.02, 1.6, std(0x2b1a0e, 0.9), x, 5.2, 0.4, 6);
     cord.castShadow = false;
-    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.4, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x3a2415, roughness: 0.6, side: THREE.DoubleSide }));
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.4, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x2fb3a6, roughness: 0.6, side: THREE.DoubleSide }));
     shade.position.set(x, 4.35, 0.4);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffe9a8 }));
     bulb.position.set(x, 4.2, 0.4);
@@ -402,11 +455,13 @@ export function buildWorld(container) {
   const chef = createChef();
   world.add(chef.group);
 
-  // --- Steam jets: wok, fryer, and a gentle one over the plate.
+  // --- Steam jets: wok, fryer, a gentle one over the plate, and cold
+  // air mist drifting from the base of the fridge.
   const steams = [
     makeSteam(new THREE.Vector3(0.2, 1.75, -3.6), 16, 0xffffff, 0.25, 1.6),
     makeSteam(new THREE.Vector3(2.9, 1.8, -3.6), 12, 0xffffff, 0.2, 1.3),
     makeSteam(new THREE.Vector3(-1.3, 1.3, 0.4), 8, 0xffffff, 0.3, 0.9),
+    makeSteam(new THREE.Vector3(6.9, 0.3, -3.5), 12, 0xd6ecff, 0.9, 1.4),
   ];
   for (const s of steams) world.add(s.points);
 
