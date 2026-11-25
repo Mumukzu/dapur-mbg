@@ -12,6 +12,10 @@ const WHITE = 0xf8f8f4;
 const STEEL = 0xb9c2c9;
 const WOOD = 0xc98d4e;
 const WOOD_DARK = 0x9a6a33;
+// Dark teal-green for the two tops where plates sit (island + serve window):
+// white plates and warm food (rice, noodle, egg, garnish) pop against it,
+// where they washed out on the light wood. Matches Chef Sari's teal shirt.
+const COUNTER_DARK = 0x14524a;
 
 function mat(color, rough = 0.85, metal = 0.0) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
@@ -365,7 +369,7 @@ export function buildKitchen(scene) {
 
   // ---- SERVE WINDOW (right end of the back counter) ----
   const serve = new THREE.Group();
-  serve.add(box(1.9, 0.12, 1.2, WOOD, 0, 1.0, 0.35));
+  serve.add(box(1.9, 0.12, 1.2, COUNTER_DARK, 0, 1.0, 0.35));
   const bell = new THREE.Group();
   bell.add(cyl(0.14, 0.18, 0.08, 0xffc94d, 0, 0.06, 0, 18));
   bell.add(sph(0.03, 0x333333, 0, 0.13, 0)); bell.position.set(0.55, 1.06, 0.3); serve.add(bell);
@@ -387,7 +391,7 @@ export function buildKitchen(scene) {
   // ---- CENTRAL ISLAND (assembly counter) ----
   const island = new THREE.Group();
   island.add(box(3.6, 0.9, 1.3, 0xe8e2d4, 0, 0.45, 0));
-  island.add(box(3.8, 0.1, 1.5, WOOD, 0, 0.95, 0));
+  island.add(box(3.8, 0.1, 1.5, COUNTER_DARK, 0, 0.95, 0));
   island.add(box(3.8, 0.08, 0.08, WOOD_DARK, 0, 0.5, 0.72));
   // ingredients waiting on the island (a full, busy counter)
   const islandGoods = [['rice', -1.4], ['egg', -0.95], ['veggies', -0.45], ['tomato', 0.45], ['noodle', 0.95], ['chili', 1.35], ['fruit', 1.55]];
