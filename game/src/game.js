@@ -529,7 +529,7 @@ function tick() {
   const dt = Math.min(clock.getDelta(), 0.25); // generous cap: slow machines still play in real time
   const t = clock.elapsedTime;
   orbit.update(dt); // damped orbit — runs in every state, incl. title
-  kitchen.update(dt, t);
+  kitchen.update(dt, t, camera); // steam/mist + wall fade for the 180° orbit
 
   if (state === 'playing') {
     orderMgr.update(dt);
@@ -578,6 +578,12 @@ window.__mbg = {
   missions: () => missionMgr.state(),
   music: () => SFX.musicStats(),
   camera: () => orbit.state(),
+  walls: () => kitchen.wallState(), // [back, left, right] opacity 0..1
+  // project a 3D point to screen pixels (for playtest click targeting)
+  screenPoint: (x, y, z) => {
+    const v = new THREE.Vector3(x, y, z).project(camera);
+    return [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)];
+  },
 };
 
 init();

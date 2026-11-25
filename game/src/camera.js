@@ -1,12 +1,19 @@
 // camera.js — custom orbit camera: drag to rotate, wheel / pinch to zoom,
-// double-click / double-tap to reset. No libraries, no CDN — ~130 lines.
+// double-click / double-tap to reset. No libraries, no CDN — ~140 lines.
 // The camera orbits a fixed target (the kitchen centre) on a sphere:
-// azimuth (side to side), polar (height), distance (zoom). All three are
-// clamped so the camera never goes under the floor, behind the back wall,
-// or so far it loses the kitchen. Movement is damped (goal vs current).
+// azimuth (side to side, FULL 360° — the walls fade when the camera swings
+// behind them, so no angle is ever blocked), polar (height), distance
+// (zoom). Polar and distance are clamped so the camera never goes under the
+// floor or so far it loses the kitchen. Movement is damped (goal vs current).
 import * as THREE from 'three';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// keep angles in [-PI, PI] so the azimuth never grows without bound
+const wrapAngle = (a) => {
+  a = (a + Math.PI) % (2 * Math.PI);
+  if (a < 0) a += 2 * Math.PI;
+  return a - Math.PI;
+};
 
 // Default view = the camera the game has always opened with:
 // position (0, 6.6, 6.6) looking at (0, 0.9, -3.0).
@@ -17,12 +24,13 @@ export const CAMERA_DEFAULTS = {
   distance: 11.16,
 };
 
-// Azimuth is clamped to the front of the kitchen: past ±0.9 rad the camera
-// would swing behind the back wall and the wall would block the view.
+// Azimuth is NOT clamped: the camera orbits a full 360° (180° to the
+// opposite side and beyond). The kitchen walls fade out whenever one stands
+// between the camera and the kitchen (see kitchen.js updateWallFade), so no
+// angle is ever blocked by a wall.
 export const CAMERA_LIMITS = {
   minDistance: 6, maxDistance: 16,
   minPolar: 0.35, maxPolar: 1.25,
-  minAzimuth: -0.9, maxAzimuth: 0.9,
 };
 
 export function createOrbitCamera(camera, dom, opts = {}) {
@@ -60,7 +68,9 @@ export function createOrbitCamera(camera, dom, opts = {}) {
 
   function update(dt) {
     const k = 1 - Math.exp(-dt * 10); // frame-rate independent damping
-    cur.azimuth += (goal.azimuth - cur.azimuth) * k;
+    // shortest-arc damping for azimuth: across the ±PI wrap the camera
+    // must take the short way round, never the long way through the front
+    cur.azimuth = wrapAngle(cur.azimuth + wrapAngle(goal.azimuth - cur.azimuth) * k);
     cur.polar += (goal.polar - cur.polar) * k;
     cur.distance += (goal.distance - cur.distance) * k;
     apply();
@@ -73,7 +83,7 @@ export function createOrbitCamera(camera, dom, opts = {}) {
     const d = Math.max(off.length(), 0.001);
     goal.distance = cur.distance = clamp(d, CAMERA_LIMITS.minDistance, CAMERA_LIMITS.maxDistance);
     goal.polar = cur.polar = clamp(Math.acos(clamp(off.y / d, -1, 1)), CAMERA_LIMITS.minPolar, CAMERA_LIMITS.maxPolar);
-    goal.azimuth = cur.azimuth = clamp(Math.atan2(off.x, off.z), CAMERA_LIMITS.minAzimuth, CAMERA_LIMITS.maxAzimuth);
+    goal.azimuth = cur.azimuth = wrapAngle(Math.atan2(off.x, off.z));
     apply();
   }
 
@@ -118,7 +128,8 @@ export function createOrbitCamera(camera, dom, opts = {}) {
       moved += Math.abs(dx) + Math.abs(dy);
       if (moved > 5) dragging = true; // >5px = a drag, not a click
       if (dragging) {
-        goal.azimuth = clamp(goal.azimuth - dx * 0.005, CAMERA_LIMITS.minAzimuth, CAMERA_LIMITS.maxAzimuth);
+        // azimuth is free: full 360° orbit, wrapped so it never grows
+        goal.azimuth = wrapAngle(goal.azimuth - dx * 0.005);
         goal.polar = clamp(goal.polar - dy * 0.005, CAMERA_LIMITS.minPolar, CAMERA_LIMITS.maxPolar);
       }
     }
