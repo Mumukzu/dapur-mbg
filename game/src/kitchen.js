@@ -15,7 +15,7 @@ const WOOD_DARK = 0x9a6a33;
 // Dark teal-green for the two tops where plates sit (island + serve window):
 // white plates and warm food (rice, noodle, egg, garnish) pop against it,
 // where they washed out on the light wood. Matches Chef Sari's teal shirt.
-const COUNTER_DARK = 0x14524a;
+const COUNTER_DARK = 0x4a2e1a; // dark walnut: darker than WOOD/WOOD_DARK so white plates pop, warm brown to fit the kitchen (teal clashed)
 
 function mat(color, rough = 0.85, metal = 0.0) {
   return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
