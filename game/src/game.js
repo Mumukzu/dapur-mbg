@@ -410,6 +410,18 @@ function bindUI() {
   $('resume-btn').onclick = togglePause;
   $('mute-btn').onclick = () => { SFX.ensureAudio(); const m = SFX.toggleMute(); $('mute-btn').textContent = m ? '🔇 Muted' : '🔊 Sound'; };
   $('picker-close').onclick = hidePicker;
+  // daily missions collapse toggle (default expanded so missions stay visible)
+  const missionsToggle = $('missions-toggle');
+  if (missionsToggle) {
+    const toggleMissions = () => {
+      const box = $('missions');
+      const collapsed = box.classList.toggle('collapsed');
+      missionsToggle.setAttribute('aria-expanded', String(!collapsed));
+      missionsToggle.querySelector('.m-chev').textContent = collapsed ? '▸' : '▾';
+    };
+    missionsToggle.onclick = toggleMissions;
+    missionsToggle.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMissions(); } };
+  }
   document.querySelectorAll('.station-btn').forEach((b) => {
     b.onclick = () => { if (state !== 'playing') return; SFX.ensureAudio(); goToStation(b.dataset.station, true); };
   });
