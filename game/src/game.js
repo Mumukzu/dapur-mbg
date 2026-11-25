@@ -5,6 +5,7 @@ import { INGREDIENTS, DISHES, STATIONS, MAX_TRAY, findDish, FRIDGE_ITEMS, PANTRY
 import { buildKitchen, buildIngredientProp, buildPlatedDish } from './kitchen.js';
 import { buildChef } from './chef.js';
 import { createOrderManager } from './orders.js';
+import { createMissionManager, MISSION_BONUS } from './missions.js';
 import * as SFX from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +24,7 @@ let state = 'title'; // title | playing | paused | over
 let busyUntil = 0; // action lock timestamp (performance.now ms)
 let busyKind = '';
 let orderMgr;
+let missionMgr;
 let lastTickSecond = -1;
 
 function now() { return performance.now(); }
@@ -81,6 +83,7 @@ function init() {
   });
 
   orderMgr = createOrderManager(onOrderEvent);
+  missionMgr = createMissionManager(onMissionEvent);
   bindUI();
   clock = new THREE.Clock();
   addEventListener('resize', onResize);
@@ -259,11 +262,40 @@ function hidePicker() { $('picker').classList.add('hidden'); }
 // ---------- orders / HUD ----------
 function onOrderEvent(type, data) {
   if (type === 'order') SFX.playDing();
-  if (type === 'lost') { SFX.playFail(); setHint(`Order lost: ${data.dish.name} — ${orderMgr.state().lost}/3 lost!`); }
-  if (type === 'day') { SFX.playWin(); setHint(`Day ${data} — more orders, faster!`); }
+  if (type === 'serve') missionMgr.onServe(data.dish, data.earned, data.combo);
+  if (type === 'lost') { missionMgr.onOrderLost(); SFX.playFail(); setHint(`Order lost: ${data.dish.name} — ${orderMgr.state().lost}/3 lost!`); }
+  if (type === 'day') { missionMgr.start(data); SFX.playWin(); setHint(`Day ${data} — new missions, more orders, faster!`); }
   if (type === 'over-lost') endGame(false, 'Too many lost orders!');
   if (type === 'over-time') endGame(true, 'Shift complete!');
   renderOrders(); updateHUD();
+}
+
+// Missions never interrupt play: the bonus lands as coins + a hint toast.
+function onMissionEvent(type, data) {
+  if (type === 'mission-complete') {
+    orderMgr.addCoins(MISSION_BONUS);
+    SFX.playCoin();
+    setHint(`🎯 Mission complete: ${data.title} — +${MISSION_BONUS} bonus coins!`);
+    updateHUD();
+  }
+  renderMissions();
+}
+
+function renderMissions() {
+  const list = $('mission-list');
+  if (!list) return;
+  const st = missionMgr.state();
+  list.innerHTML = '';
+  if (!st.missions.length) {
+    list.innerHTML = '<div class="mission"><span>🎯</span><span>Missions start when the shift starts.</span></div>';
+    return;
+  }
+  for (const m of st.missions) {
+    const row = document.createElement('div');
+    row.className = 'mission' + (m.done ? ' done' : '');
+    row.innerHTML = `<span>${m.icon}</span><span>${m.title}</span><span class="m-prog">${m.done ? '✓ DONE' : `${m.progress}/${m.target}`}</span>`;
+    list.appendChild(row);
+  }
 }
 
 function renderOrders() {
@@ -282,6 +314,7 @@ function renderOrders() {
     board.appendChild(card);
   }
   if (!st.orders.length) board.innerHTML = '<div class="order-empty">No orders yet…</div>';
+  renderMissions();
 }
 
 function updateHUD() {
@@ -322,6 +355,7 @@ function setHint(t) { $('hint').textContent = t; }
 function startGame() {
   SFX.ensureAudio(); SFX.playStart();
   orderMgr.start();
+  missionMgr.start(1);
   tray = []; clearPlate(); refreshTrayProps();
   chef.group.position.set(0, 0, 1.6);
   chefStation = null; chefTarget = null;
@@ -340,7 +374,7 @@ function endGame(finished, reason) {
   SFX.playWin();
   const st = orderMgr.state();
   $('final-reason').textContent = reason;
-  $('final-stats').innerHTML = `Coins <b>${st.coins}</b> &nbsp;•&nbsp; Score <b>${st.score}</b> &nbsp;•&nbsp; Served <b>${st.served}</b> &nbsp;•&nbsp; Best combo <b>x${(1 + Math.min(st.bestCombo, 10) * 0.1).toFixed(1)}</b> &nbsp;•&nbsp; Day <b>${st.day}</b>`;
+  $('final-stats').innerHTML = `Coins <b>${st.coins}</b> &nbsp;•&nbsp; Score <b>${st.score}</b> &nbsp;•&nbsp; Served <b>${st.served}</b> &nbsp;•&nbsp; Best combo <b>x${(1 + Math.min(st.bestCombo, 10) * 0.1).toFixed(1)}</b> &nbsp;•&nbsp; Day <b>${st.day}</b> &nbsp;•&nbsp; Missions <b>${missionMgr.state().doneCount}/3</b>`;
   $('gameover-screen').classList.remove('hidden');
   updateHUD();
 }
@@ -412,7 +446,10 @@ function applyShot(shot) {
     $('dock').style.transform = 'none';
     camera.position.set(1.1, 6.6, 6.6);
     camera.lookAt(-0.5, 0.9, -3.0);
-    forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40], ['beef-potato', 22], ['fruit-milk', 33]]);
+    // 3 orders, not 4: the board now also carries the missions panel, and a
+    // 4th order pushes the panel's bottom rows under the dock's PLATED banner.
+    forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40], ['beef-potato', 22]]);
+    missionMgr.stageShot(); // cover shows the missions panel mid-progress, one done
     plateDish(DISHES[0]); // Sunshine Rice Box, garnished + steaming, on the island
     plateMesh.position.set(-1.2, 1.02, -0.7); // left end of the island, in the open
     forceTray([['rice', false, false], ['egg', false, false], ['chili', true, false]]);
@@ -516,6 +553,7 @@ window.__mbg = {
   station: () => chefStation,
   tray: () => tray.map((t) => t.id),
   plated: () => (plated ? plated.id : null),
+  missions: () => missionMgr.state(),
 };
 
 init();

@@ -50,6 +50,16 @@
   .patience-num { font-size: 11px; font-weight: 800; color: #666; text-align: right; }
   .order-empty { color: #888; font-size: 13px; text-align: center; padding: 8px; }
 
+  /* ---- daily missions (inside the order board) ---- */
+  #missions { margin-top: 10px; border-top: 2px dashed #e8d3a8; padding-top: 8px; }
+  #missions h3 { font-size: 13px; color: #b8860b; letter-spacing: 1px; margin-bottom: 6px; }
+  #missions h3 span { float: right; font-size: 11px; color: #0f8a8a; }
+  .mission { display: flex; align-items: center; gap: 6px; background: #fff; border: 2px solid #e8d3a8;
+    border-radius: 8px; padding: 5px 7px; margin-bottom: 6px; font-size: 12px; font-weight: 700; }
+  .mission.done { background: #e6f7e6; border-color: #3fa34d; }
+  .mission .m-prog { margin-left: auto; font-weight: 900; color: #0b6b6b; white-space: nowrap; }
+  .mission.done .m-prog { color: #3fa34d; }
+
   /* ---- bottom dock: tray + stations ---- */
   #dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; z-index: 10;
     display: flex; flex-direction: column; align-items: center; gap: 6px; }
@@ -121,6 +131,10 @@
 <div id="board">
   <h2>📋 ORDER BOARD <span id="board-count">ORDERS</span></h2>
   <div id="orders"></div>
+  <div id="missions">
+    <h3>🎯 DAILY MISSIONS <span>+20 🪙 each</span></h3>
+    <div id="mission-list"></div>
+  </div>
 </div>
 
 <div id="picker" class="hidden">
@@ -156,7 +170,8 @@
       🧊 <b>1 Fridge</b> — milk, fish, tofu, fruit &nbsp;•&nbsp; 🥫 <b>2 Pantry</b> — rice, noodle &amp; dry goods<br>
       🔪 <b>3 Chop</b> then 🍳 <b>4 Cook</b> what is on your tray &nbsp;•&nbsp; 🛎️ <b>5 Serve</b> the plated dish<br>
       🖱️ Click a station (or press 1–6) to send Chef Sari there &nbsp;•&nbsp; <b>Space</b> works at a station<br>
-      ⭐ Serve fast in a row to build your combo up to <b>x2.0</b> &nbsp;•&nbsp; <b>P</b> pause, <b>M</b> mute
+      ⭐ Serve fast in a row to build your combo up to <b>x2.0</b> &nbsp;•&nbsp; <b>P</b> pause, <b>M</b> mute<br>
+      🎯 <b>Daily missions</b> — finish 3 goals a day for <b>+20 bonus coins</b> each; a new set every day
     </div>
     <button class="big-btn" id="start-btn">▶ START SHIFT</button>
     <p style="margin-top:10px; font-size:12px; color:#888;">10 dishes • 16 ingredients • 150-second shifts • a new day every 4 serves</p>

@@ -17,6 +17,8 @@ export function createOrderManager(onEvent) {
   let day = 1;
   let over = false;
 
+  function addCoins(n) { coins += n; } // mission bonus lands here
+
   function level() { return LEVELS[Math.min(day - 1, LEVELS.length - 1)]; }
   function timeLeft() { return Math.max(0, SHIFT_SECONDS - elapsed); }
 
@@ -85,5 +87,5 @@ export function createOrderManager(onEvent) {
   function setCoins(n) { coins = n; }
   function setCombo(n) { combo = n; comboTimer = 12; }
 
-  return { start, update, serveDish, state, spawnOrder, setElapsed, setCoins, setCombo };
+  return { start, update, serveDish, state, spawnOrder, setElapsed, setCoins, setCombo, addCoins };
 }
