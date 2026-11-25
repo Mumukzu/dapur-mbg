@@ -130,10 +130,69 @@ export function buildIngredientProp(id, scale = 1) {
   return g;
 }
 
+// A plated dish that looks worth serving: food mound (rice / noodle nest),
+// mains arranged around it, golden yolk on egg dishes, chili + herb garnish,
+// a sauce drizzle ring, and rising steam wisps (animated by buildKitchen).
+export function buildPlatedDish(dish) {
+  const g = new THREE.Group();
+  const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.27, 0.06, 22), mat(0xffffff, 0.4));
+  plate.position.y = 0.03; plate.castShadow = true; g.add(plate);
+  const has = (id) => dish.recipe.includes(id);
+  if (has('rice')) {
+    const mound = sph(0.2, 0xfff8dc, 0, 0.12, 0); mound.scale.y = 0.55; g.add(mound);
+  } else if (has('noodle')) {
+    const nest = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.07, 10, 20), mat(0xf2c14e));
+    nest.rotation.x = Math.PI / 2; nest.position.y = 0.1; nest.castShadow = true; g.add(nest);
+  } else {
+    const mound = sph(0.18, 0xf5f0dc, 0, 0.1, 0); mound.scale.y = 0.5; g.add(mound);
+  }
+  const mains = dish.recipe.filter((id) => id !== 'rice' && id !== 'noodle');
+  mains.forEach((id, i) => {
+    const a = (i / Math.max(mains.length, 1)) * Math.PI * 2 + 0.5;
+    const px = Math.cos(a) * 0.17, pz = Math.sin(a) * 0.17;
+    if (id === 'egg') {
+      // fried egg: white disc + golden yolk (no carton on a plate)
+      const white = cyl(0.11, 0.11, 0.02, 0xfffdf2, px, 0.1, pz, 18); g.add(white);
+      const yolk = sph(0.055, 0xffb703, px, 0.13, pz);
+      yolk.material = new THREE.MeshStandardMaterial({ color: 0xffb703, roughness: 0.25, emissive: 0x442200 });
+      g.add(yolk);
+    } else if (id === 'milk') {
+      g.add(cyl(0.06, 0.05, 0.14, 0xffffff, px, 0.14, pz, 14));
+      g.add(cyl(0.055, 0.055, 0.02, 0x3fa7d6, px, 0.2, pz, 14));
+    } else {
+      const p = buildIngredientProp(id, 0.85);
+      p.position.set(px, 0.08, pz); g.add(p);
+    }
+  });
+  // garnish: red chili slices + green herb leaves on top
+  for (let i = 0; i < 2; i++) {
+    const chili = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.14, 8), mat(0xd7263d, 0.5));
+    chili.rotation.z = Math.PI / 2; chili.position.set(-0.1 + i * 0.2, 0.2, -0.12); chili.castShadow = true; g.add(chili);
+  }
+  for (let i = 0; i < 3; i++) {
+    const leaf = sph(0.045, 0x2c7a3a, -0.14 + i * 0.14, 0.19, 0.14);
+    leaf.scale.set(1.4, 0.35, 0.9); g.add(leaf);
+  }
+  // sauce drizzle: thin red/gold arc on the plate rim
+  const drizzle = new THREE.Mesh(
+    new THREE.TorusGeometry(0.28, 0.015, 8, 24, Math.PI * 1.2),
+    new THREE.MeshStandardMaterial({ color: has('chili') ? 0xd7263d : 0xf2a007, roughness: 0.3 }));
+  drizzle.rotation.x = Math.PI / 2; drizzle.rotation.z = 0.4; drizzle.position.y = 0.065; g.add(drizzle);
+  // steam wisps (registered with the kitchen so they animate)
+  for (let i = 0; i < 3; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, roughness: 1 }));
+    s.position.set(-0.1 + i * 0.1, 0.35, 0);
+    s.userData.steam = true; s.userData.baseY = 0.35; s.userData.rise = i * 0.33;
+    g.add(s);
+  }
+  return g;
+}
+
 export function buildKitchen(scene) {
   const root = new THREE.Group();
   scene.add(root);
-  const animated = { steam: [], mist: [], flames: [] };
+  const animated = { steam: [], mist: [], flames: [], plateSteam: [] };
 
   // ---- Room: bright sky-blue walls, warm cream floor (clearly different) ----
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), mat(CREAM, 0.95));
@@ -322,10 +381,21 @@ export function buildKitchen(scene) {
       m.position.x = -0.6 + i * 0.4 + Math.sin(t * 0.9 + i) * 0.05;
     });
     animated.flames.forEach((f, i) => { f.scale.y = 0.85 + 0.3 * Math.sin(t * 11 + i * 2.4); });
+    for (const s of animated.plateSteam) {
+      const ph = (t * 0.4 + s.userData.rise) % 1;
+      s.position.y = s.userData.baseY + ph * 0.5;
+      s.material.opacity = 0.5 * (1 - ph);
+      s.scale.setScalar(0.8 + ph * 0.9);
+    }
   }
 
   return {
     root, stations, island, fridgeDoor, update,
     setFridgeOpen(open) { fridgeDoor.rotation.y = open ? -1.9 : 0; },
+    registerPlateSteam(group) {
+      animated.plateSteam.length = 0;
+      group.traverse((o) => { if (o.userData && o.userData.steam) animated.plateSteam.push(o); });
+    },
+    clearPlateSteam() { animated.plateSteam.length = 0; },
   };
 }

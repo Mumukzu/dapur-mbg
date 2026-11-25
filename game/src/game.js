@@ -2,7 +2,7 @@
 // serve flow, HUD, title / pause / game-over states, and ?shot= staging.
 import * as THREE from 'three';
 import { INGREDIENTS, DISHES, STATIONS, MAX_TRAY, findDish, FRIDGE_ITEMS, PANTRY_ITEMS } from './config.js';
-import { buildKitchen, buildIngredientProp } from './kitchen.js';
+import { buildKitchen, buildIngredientProp, buildPlatedDish } from './kitchen.js';
 import { buildChef } from './chef.js';
 import { createOrderManager } from './orders.js';
 import * as SFX from './audio.js';
@@ -36,7 +36,7 @@ function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.12;
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x9fd8f7);
@@ -181,18 +181,12 @@ function plateDish(dish) {
   tray = []; // the ingredients are now on the plate
   SFX.playDing();
   setHint(`Plated: ${dish.name} — take it to SERVE!`);
-  // plate on the island
-  if (plateMesh) scene.remove(plateMesh);
-  plateMesh = new THREE.Group();
-  const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.26, 0.06, 22), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }));
-  plate.position.y = 0.03; plate.castShadow = true; plateMesh.add(plate);
-  dish.recipe.forEach((id, i) => {
-    const p = buildIngredientProp(id, 0.9);
-    p.position.set(-0.14 + (i % 2) * 0.28, 0.08, i < 2 ? -0.08 : 0.12);
-    plateMesh.add(p);
-  });
+  // plate on the island: garnished, steaming, arranged — not flat blobs
+  if (plateMesh) { scene.remove(plateMesh); kitchen.clearPlateSteam(); }
+  plateMesh = buildPlatedDish(dish);
   plateMesh.position.set(0.9, 1.02, -0.7);
   scene.add(plateMesh);
+  kitchen.registerPlateSteam(plateMesh);
   chef.setAction('carry');
   refreshTrayProps();
   updateHUD();
@@ -237,7 +231,7 @@ function interact(id) {
 
 function clearPlate() {
   plated = null;
-  if (plateMesh) { scene.remove(plateMesh); plateMesh = null; }
+  if (plateMesh) { scene.remove(plateMesh); plateMesh = null; kitchen.clearPlateSteam(); }
   chef.setAction('idle');
 }
 
@@ -396,17 +390,33 @@ function applyShot(shot) {
   startGame();
   const st = orderMgr.state();
   if (shot === 'start') {
-    // title screen over a live kitchen with two orders waiting;
-    // card pushed right so Chef Sari is visible on the left, facing the camera
+    // busy cover: title card pushed right; behind it a kitchen mid-shift —
+    // Chef Sari chopping at the board, 4 orders (one amber), a steaming
+    // plated dish on the island, tray full, fridge open, coins + combo up
     state = 'title';
     const ts = $('title-screen');
     ts.classList.remove('hidden');
     ts.style.justifyContent = 'flex-end';
-    ts.style.paddingRight = '46px';
-    forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40]]);
-    chef.group.position.set(-2.9, 0, 0.9);
-    chef.group.rotation.y = 0; // faces the camera: toque, apron, gold badge
-    chef.setAction('idle');
+    ts.style.paddingRight = '30px';
+    // narrower card + camera panned right so Chef Sari and the plated dish
+    // sit in the open left half instead of hiding behind the title card
+    ts.querySelector('.card').style.maxWidth = '500px';
+    ts.querySelector('.card').style.padding = '20px 22px';
+    camera.position.set(1.1, 6.6, 6.6);
+    camera.lookAt(-0.5, 0.9, -3.0);
+    forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40], ['beef-potato', 22], ['fruit-milk', 33]]);
+    plateDish(DISHES[0]); // Sunshine Rice Box, garnished + steaming, on the island
+    plateMesh.position.set(-1.2, 1.02, -0.7); // left end of the island, in the open
+    forceTray([['rice', false, false], ['egg', false, false], ['chili', true, false]]);
+    chef.group.position.set(-1.1, 0, -2.4);
+    chef.group.lookAt(-1.1, 0, -4.35);
+    chef.group.rotateY(0.7); // three-quarter view: toque + teal shirt read
+    chef.setAction('chop');
+    chefStation = 'chop';
+    kitchen.setFridgeOpen(true);
+    orderMgr.setCoins(24);
+    orderMgr.setCombo(2); // combo x1.2
+    setHint('Chopping chili for the Sunshine Rice Box…');
   } else if (shot === 'play') {
     // dish mid-assembly: rice + egg on tray, chili chopped, chef chopping
     forceOrders([['sunshine-rice', 38], ['veggie-rice', 30], ['beef-potato', 44]]);
