@@ -5,7 +5,7 @@
 // charred black. All geometry is built from primitives — no textures,
 // no external models.
 
-import * as THREE from '../vendor/three.module.js';
+import * as THREE from '../vendor/three.module.min.js';
 
 const MATS = {};
 function mat(color, rough) {

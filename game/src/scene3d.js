@@ -9,7 +9,7 @@
 //   pantry (-5.7, wall shelves) · board (-2.6) · wok (0.2) · fryer (2.9)
 //   plate (-1.3, island) · serve (2.4, island) · trash (5.2)
 
-import * as THREE from '../vendor/three.module.js';
+import * as THREE from '../vendor/three.module.min.js';
 import { makeIngredient, makePlate } from './ingredients3d.js';
 
 export const STATION_POS = {

@@ -5,7 +5,7 @@
 // while chopping or cooking. Keyboard 1-6 + Space use the same entry
 // point as the mouse, so both play the identical game.
 
-import * as THREE from '../vendor/three.module.js';
+import * as THREE from '../vendor/three.module.min.js';
 import { INGREDIENTS, STATIONS } from './config.js';
 import { PANTRY_BINS, STATION_POS } from './scene3d.js';
 
