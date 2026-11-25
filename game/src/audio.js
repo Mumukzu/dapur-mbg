@@ -69,6 +69,8 @@ export function playTick()   { tone(1200, 0.04, 'square', 0.06); }
 export function playStart()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, 'triangle', 0.15, i * 0.09)); }
 export function playWin()    { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, 'triangle', 0.16, i * 0.11)); }
 export function playFridge() { noise(0.35, 0.1, 0, 800); tone(300, 0.2, 'sine', 0.06, 0, 520); }
+export function playCombo() { [659, 784, 1047].forEach((f, i) => tone(f, 0.14, 'triangle', 0.15, i * 0.07)); }
+export function playCelebrate() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, 0.18, 'triangle', 0.16, i * 0.1)); tone(1568, 0.4, 'sine', 0.12, 0.7); }
 
 // ---------- BGM: an original cheerful kitchen loop (WebAudio only) ----------
 // C major, 120 BPM, 8 bars = 16 s loop. Eighth-note melody (triangle) +

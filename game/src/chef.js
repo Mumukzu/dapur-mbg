@@ -134,12 +134,20 @@ export function buildChef() {
       parts.legL.rotation.x = Math.sin(walkPhase) * 0.4;
       parts.legR.rotation.x = -Math.sin(walkPhase) * 0.4;
       chef.position.y = Math.abs(Math.sin(walkPhase)) * 0.04;
+    } else if (action === 'happy') {
+      // arms up, big bounce — a dish was just served!
+      parts.armL.rotation.x = -2.6; parts.armR.rotation.x = -2.6;
+      parts.armL.rotation.z = 0.35; parts.armR.rotation.z = -0.35;
+      chef.position.y = Math.abs(Math.sin(actionT * 9)) * 0.16;
+      parts.head.rotation.x = -0.15;
+      parts.legL.rotation.x = 0; parts.legR.rotation.x = 0;
     } else {
       // idle: gentle breathing + looking around
       parts.armL.rotation.x = Math.sin(actionT * 1.4) * 0.06;
       parts.armR.rotation.x = -Math.sin(actionT * 1.4) * 0.06;
       parts.armL.rotation.z = 0; parts.armR.rotation.z = 0;
       parts.legL.rotation.x = 0; parts.legR.rotation.x = 0;
+      parts.head.rotation.x = 0;
       parts.torso.scale.y = 1 + Math.sin(actionT * 1.4) * 0.012;
       parts.head.rotation.y = Math.sin(actionT * 0.5) * 0.25;
       chef.position.y = 0;

@@ -22,10 +22,13 @@ export function createOrderManager(onEvent) {
   function level() { return LEVELS[Math.min(day - 1, LEVELS.length - 1)]; }
   function timeLeft() { return Math.max(0, SHIFT_SECONDS - elapsed); }
 
-  function spawnOrder() {
+  function spawnOrder(dishId) {
     const lv = level();
     if (orders.length >= lv.ordersAtOnce) return;
-    const dish = DISHES[Math.floor(Math.random() * DISHES.length)];
+    const dish = dishId
+      ? DISHES.find((d) => d.id === dishId)
+      : DISHES[Math.floor(Math.random() * DISHES.length)];
+    if (!dish) return;
     orders.push({ id: nextId++, dish, patience: lv.patience, maxPatience: lv.patience, state: 'waiting' });
     onEvent('order', orders[orders.length - 1]);
   }
@@ -33,7 +36,9 @@ export function createOrderManager(onEvent) {
   function start() {
     orders = []; elapsed = 0; coins = 0; score = 0; combo = 0; bestCombo = 0;
     served = 0; lost = 0; day = 1; over = false; spawnTimer = 0;
-    spawnOrder(); spawnOrder();
+    // the first order is always the easiest dish (Sunshine Rice Box: pantry
+    // only, one chop, one cook) so the first 30 seconds teach the loop
+    spawnOrder('sunshine-rice'); spawnOrder();
   }
 
   function comboMultiplier() { return 1 + Math.min(combo, 10) * 0.1; } // up to x2.0

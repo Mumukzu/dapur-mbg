@@ -7,6 +7,7 @@ import { buildChef } from './chef.js';
 import { createOrderManager } from './orders.js';
 import { createMissionManager, MISSION_BONUS } from './missions.js';
 import { createOrbitCamera } from './camera.js';
+import { createParticles } from './particles.js';
 import * as SFX from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -39,6 +40,13 @@ let busyKind = '';
 let orderMgr;
 let missionMgr;
 let lastTickSecond = -1;
+let particles;
+let lastMult = 1;
+let happyUntil = 0;
+// First-shift coach: guide-by-doing through the first dish (pantry → chop
+// → stove → serve). One session only; never in screenshot presets.
+const COACH_RECIPE = ['rice', 'egg', 'chili'];
+let coach = { active: false, step: '', done: false, timeout: 0 };
 
 function now() { return performance.now(); }
 
@@ -85,6 +93,7 @@ function init() {
   warm.position.set(0, 3.8, -0.7); scene.add(warm); // warm pool over the island / food area
 
   kitchen = buildKitchen(scene);
+  particles = createParticles(scene);
   chef = buildChef();
   chef.group.position.set(0, 0, 1.6);
   scene.add(chef.group);
@@ -175,9 +184,12 @@ function addToTray(id) {
   if (tray.length >= MAX_TRAY) { setHint('Tray is full — serve it or trash it!'); return false; }
   tray.push({ id, chopped: false, cooked: false });
   SFX.playPick();
+  particles.burst({ x: chef.group.position.x, y: 1.1, z: chef.group.position.z },
+    { color: 'gold', n: 5, speed: 1.0, up: 1.4, life: 0.6 });
   refreshTrayProps();
   checkPlate();
   updateHUD();
+  coachCheck();
   return true;
 }
 
@@ -205,6 +217,8 @@ function plateDish(dish) {
   if (plateMesh) { scene.remove(plateMesh); kitchen.clearPlateSteam(); }
   plateMesh = buildPlatedDish(dish);
   plateMesh.position.set(0.9, 1.02, -0.7);
+  plateMesh.scale.setScalar(1.15); // the plate reads at a glance, even far away
+  particles.burst({ x: 0.9, y: 1.3, z: -0.7 }, { color: 'gold', n: 8, speed: 1.2, up: 1.6, life: 0.7 });
   scene.add(plateMesh);
   kitchen.registerPlateSteam(plateMesh);
   chef.setAction('carry');
@@ -227,7 +241,9 @@ function interact(id) {
     if (!todo.length) { setHint('Nothing to chop here.'); return; }
     busyKind = 'chop'; busyUntil = now() + 1400;
     chef.setAction('chop'); SFX.playChop();
-    setTimeout(() => { todo.forEach((t) => { t.chopped = true; }); SFX.playChop(); refreshTrayProps(); checkPlate(); updateHUD(); }, 1300);
+    setTimeout(() => { todo.forEach((t) => { t.chopped = true; }); SFX.playChop();
+      particles.burst({ x: -1.1, y: 1.3, z: -4.35 }, { color: 'green', n: 10, speed: 1.6, up: 1.8, life: 0.7 });
+      refreshTrayProps(); checkPlate(); updateHUD(); coachCheck(); }, 1300);
     return;
   }
   if (id === 'stove') {
@@ -236,15 +252,27 @@ function interact(id) {
     if (!todo.length) { setHint('Nothing to cook here.'); return; }
     busyKind = 'stir'; busyUntil = now() + 2000;
     chef.setAction('stir'); SFX.playSizzle();
-    setTimeout(() => { todo.forEach((t) => { t.cooked = true; }); SFX.playDing(); refreshTrayProps(); checkPlate(); updateHUD(); }, 1900);
+    setTimeout(() => { todo.forEach((t) => { t.cooked = true; }); SFX.playDing();
+      particles.burst({ x: 1.3, y: 1.5, z: -4.35 }, { color: 'white', n: 10, speed: 1.0, up: 2.2, life: 0.9, grav: -0.5 });
+      refreshTrayProps(); checkPlate(); updateHUD(); coachCheck(); }, 1900);
     return;
   }
   if (id === 'serve') {
     if (!plated) { setHint('No plated dish yet — finish a recipe first!'); return; }
     const res = orderMgr.serveDish(plated);
-    if (res.ok) { SFX.playServe(); SFX.playCoin(); setHint(`Served ${plated.name}! +${res.earned} coins (combo x${orderMgr.state().mult.toFixed(1)})`); }
-    else { SFX.playServe(); setHint(`Served ${plated.name} — no order for it (+2 pts).`); }
+    const servedDish = plated;
     clearPlate();
+    if (res.ok) {
+      SFX.playServe(); SFX.playCoin();
+      particles.burst({ x: 5.3, y: 1.4, z: -4.0 }, { color: 'gold', n: 18, speed: 2.2, up: 2.6, life: 1.0 });
+      particles.burst({ x: chef.group.position.x, y: 1.4, z: chef.group.position.z }, { color: 'gold', n: 8, speed: 1.4, up: 2.0, life: 0.8 });
+      chef.setAction('happy'); happyUntil = now() + 900;
+      floatCoins(`+${res.earned} 🪙`, 'coins');
+      comboBanner(orderMgr.state().mult);
+      setHint(`Served ${servedDish.name}! +${res.earned} coins (combo x${orderMgr.state().mult.toFixed(1)})`);
+      if (coach.active) endCoach(false);
+    }
+    else { SFX.playServe(); setHint(`Served ${servedDish.name} — no order for it (+2 pts).`); }
     updateHUD(); renderOrders();
   }
 }
@@ -267,6 +295,8 @@ function openPicker(which) {
     const ing = INGREDIENTS[id];
     const b = document.createElement('button');
     b.className = 'pick';
+    // the coach highlights exactly what the first order still needs
+    if (coach.active && coach.step === 'pantry' && COACH_RECIPE.includes(id) && !tray.some((t) => t.id === id)) b.classList.add('need');
     b.innerHTML = `<span class="pick-emoji">${ing.emoji}</span><span>${ing.name}</span><span class="pick-tag">${ing.cold ? 'COLD' : 'DRY'}</span>`;
     b.onclick = () => { SFX.ensureAudio(); if (addToTray(id) && tray.length >= MAX_TRAY) hidePicker(); };
     list.appendChild(b);
@@ -280,8 +310,8 @@ function hidePicker() { $('picker').classList.add('hidden'); }
 function onOrderEvent(type, data) {
   if (type === 'order') SFX.playDing();
   if (type === 'serve') missionMgr.onServe(data.dish, data.earned, data.combo);
-  if (type === 'lost') { missionMgr.onOrderLost(); SFX.playFail(); setHint(`Order lost: ${data.dish.name} — ${orderMgr.state().lost}/3 lost!`); }
-  if (type === 'day') { missionMgr.start(data); SFX.playWin(); setHint(`Day ${data} — new missions, more orders, faster!`); }
+  if (type === 'lost') { missionMgr.onOrderLost(); lastMult = 1; SFX.playFail(); flashRed(); setHint(`Order lost: ${data.dish.name} — ${orderMgr.state().lost}/3 lost!`); }
+  if (type === 'day') { missionMgr.start(data); SFX.playCelebrate(); showBanner(`☀️ DAY ${data}!`, 'New missions — fresh goals, +20 coins each', 'day'); particles.rain({ x: 0, y: 1.2, z: -0.7 }, 36); setHint(`Day ${data} — new missions, more orders, faster!`); }
   if (type === 'over-lost') endGame(false, 'Too many lost orders!');
   if (type === 'over-time') endGame(true, 'Shift complete!');
   renderOrders(); updateHUD();
@@ -291,7 +321,10 @@ function onOrderEvent(type, data) {
 function onMissionEvent(type, data) {
   if (type === 'mission-complete') {
     orderMgr.addCoins(MISSION_BONUS);
-    SFX.playCoin();
+    SFX.playCelebrate();
+    showBanner('🎯 MISSION COMPLETE!', `${data.title} — +${MISSION_BONUS} bonus coins`);
+    particles.burst({ x: 0, y: 1.4, z: -0.7 }, { color: 'gold', n: 16, speed: 2.0, up: 2.4, life: 1.0 });
+    floatCoins(`+${MISSION_BONUS} 🪙`, 'coins');
     setHint(`🎯 Mission complete: ${data.title} — +${MISSION_BONUS} bonus coins!`);
     updateHUD();
   }
@@ -368,6 +401,97 @@ function fmtTime(s) {
 
 function setHint(t) { $('hint').textContent = t; }
 
+// ---------- juice: banner, flash, floating coins, combo ----------
+function showBanner(main, sub, cls) {
+  const b = $('banner');
+  b.innerHTML = sub ? `${main}<small>${sub}</small>` : main;
+  b.className = cls || '';
+  void b.offsetWidth; // restart the animation
+  b.classList.add('show');
+}
+
+function flashRed() {
+  const f = $('flash');
+  f.classList.remove('show'); void f.offsetWidth; f.classList.add('show');
+  document.body.classList.add('shake');
+  setTimeout(() => document.body.classList.remove('shake'), 400);
+}
+
+function floatCoins(text, anchorId) {
+  const a = document.getElementById(anchorId);
+  if (!a) return;
+  const r = a.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'floater';
+  el.textContent = text;
+  el.style.left = `${Math.max(8, r.left + r.width / 2 - 20)}px`;
+  el.style.top = `${r.bottom + 4}px`;
+  el.addEventListener('animationend', () => el.remove());
+  $('floaters').appendChild(el);
+}
+
+function comboBanner(mult) {
+  for (const m of [1.3, 1.5, 2.0]) {
+    if (mult >= m && lastMult < m) {
+      showBanner(`🔥 COMBO x${m.toFixed(1)}!`, 'Serve fast in a row to keep it burning');
+      SFX.playCombo();
+      break;
+    }
+  }
+  lastMult = mult;
+}
+
+// ---------- first-shift coach: guide-by-doing, one session only ----------
+function startCoach() {
+  coach.active = true;
+  setCoachStep('pantry');
+  coach.timeout = setTimeout(() => endCoach(true), 90000);
+}
+
+function endCoach(silent) {
+  if (!coach.active) return;
+  coach.active = false; coach.done = true;
+  clearTimeout(coach.timeout);
+  clearCoachHighlight();
+  if (!silent) setHint('🎉 First dish served! You are feeding school kids now 🍱');
+}
+
+function clearCoachHighlight() {
+  document.querySelectorAll('.station-btn.coach').forEach((b) => b.classList.remove('coach'));
+  document.querySelectorAll('.pick.need').forEach((b) => b.classList.remove('need'));
+}
+
+function setCoachStep(step) {
+  coach.step = step;
+  clearCoachHighlight();
+  const map = {
+    pantry: { station: 'pantry', hint: 'Step 1/4 — Grab rice, egg & chili from the PANTRY 🥫' },
+    chop: { station: 'chop', hint: 'Step 2/4 — Chop the chili! Go to CHOP and press Space 🔪' },
+    stove: { station: 'stove', hint: 'Step 3/4 — Cook it on the STOVE! Press Space 🍳' },
+    serve: { station: 'serve', hint: 'Step 4/4 — Serve it! Go to SERVE and press Space 🛎️' },
+  };
+  const m = map[step];
+  if (!m) return;
+  const btn = document.querySelector(`.station-btn[data-station="${m.station}"]`);
+  if (btn) btn.classList.add('coach');
+  setHint(m.hint);
+}
+
+function coachCheck() {
+  if (!coach.active) return;
+  const hasAll = COACH_RECIPE.every((id) => tray.some((t) => t.id === id));
+  const wrong = tray.some((t) => !COACH_RECIPE.includes(t.id));
+  if (coach.step === 'pantry') {
+    if (wrong && tray.length) { setHint('That is not in this order — TRASH 🗑️ clears the tray.'); return; }
+    if (hasAll) setCoachStep('chop');
+  } else if (coach.step === 'chop') {
+    const chili = tray.find((t) => t.id === 'chili');
+    if (chili && chili.chopped) setCoachStep('stove');
+  } else if (coach.step === 'stove') {
+    if (plated) setCoachStep('serve');
+  }
+}
+
 // ---------- game flow ----------
 function startGame() {
   SFX.ensureAudio(); SFX.playStart(); SFX.startMusic();
@@ -383,6 +507,8 @@ function startGame() {
   $('dock').style.left = '';
   $('dock').style.transform = '';
   setHint('New shift! Check the order board, then grab ingredients.');
+  lastMult = 1;
+  if (!SHOT && !coach.done) startCoach();
   renderOrders(); updateHUD();
 }
 
@@ -543,13 +669,14 @@ function tick() {
   const t = clock.elapsedTime;
   orbit.update(dt); // damped orbit — runs in every state, incl. title
   kitchen.update(dt, t); // steam/mist
+  particles.update(dt); // sparkle bursts
 
   if (state === 'playing') {
     orderMgr.update(dt);
     const st = orderMgr.state();
     const sec = Math.ceil(st.timeLeft);
     if (sec !== lastTickSecond) { lastTickSecond = sec; if (sec <= 10 && sec > 0) SFX.playTick(); }
-    if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) { renderOrders(); updateHUD(); }
+    if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) { renderOrders(); updateHUD(); coachCheck(); }
 
     // chef movement
     let moving = false;
@@ -571,6 +698,7 @@ function tick() {
       }
     }
     if (now() >= busyUntil && busyKind) { busyKind = ''; if (!plated) chef.setAction('idle'); }
+    if (happyUntil && now() >= happyUntil) { happyUntil = 0; if (!plated) chef.setAction('idle'); }
     chef.animate(dt, moving);
   } else if (state === 'title' || state === 'over') {
     // gentle idle sway on the title screen
@@ -591,6 +719,10 @@ window.__mbg = {
   missions: () => missionMgr.state(),
   music: () => SFX.musicStats(),
   camera: () => orbit.state(),
+  // juice hooks (debug only): trigger the center banner / red flash / gold rain
+  banner: (main, sub, cls) => showBanner(main, sub, cls),
+  flash: () => flashRed(),
+  rain: () => particles.rain({ x: 0, y: 1.2, z: -0.7 }, 36),
   // project a 3D point to screen pixels (for playtest click targeting)
   screenPoint: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);

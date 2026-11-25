@@ -164,14 +164,25 @@ export function buildPlatedDish(dish) {
       p.position.set(px, 0.08, pz); g.add(p);
     }
   });
-  // garnish: red chili slices + green herb leaves on top
+  // garnish: red chili slices + green herb leaves on top (bigger, so the
+  // plate reads delicious at a glance, even in a still screenshot)
   for (let i = 0; i < 2; i++) {
-    const chili = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.14, 8), mat(0xd7263d, 0.5));
-    chili.rotation.z = Math.PI / 2; chili.position.set(-0.1 + i * 0.2, 0.2, -0.12); chili.castShadow = true; g.add(chili);
+    const chili = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.17, 8), mat(0xd7263d, 0.5));
+    chili.rotation.z = Math.PI / 2; chili.position.set(-0.1 + i * 0.2, 0.21, -0.12); chili.castShadow = true; g.add(chili);
   }
   for (let i = 0; i < 3; i++) {
-    const leaf = sph(0.045, 0x2c7a3a, -0.14 + i * 0.14, 0.19, 0.14);
+    const leaf = sph(0.055, 0x2c7a3a, -0.14 + i * 0.14, 0.2, 0.14);
     leaf.scale.set(1.4, 0.35, 0.9); g.add(leaf);
+  }
+  // golden star halo: 5 tiny stars orbiting the plate — the dish reads
+  // "fresh and magical" even in a still screenshot
+  for (let i = 0; i < 5; i++) {
+    const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.05),
+      new THREE.MeshBasicMaterial({ color: 0xffc94d }));
+    const a = (i / 5) * Math.PI * 2;
+    star.position.set(Math.cos(a) * 0.34, 0.3, Math.sin(a) * 0.34);
+    star.userData.star = true; star.userData.baseY = 0.3; star.userData.angle = a;
+    g.add(star);
   }
   // one dish-specific accent so no two plates garnish alike
   if (has('fish')) {
@@ -217,7 +228,7 @@ export function buildPlatedDish(dish) {
 export function buildKitchen(scene) {
   const root = new THREE.Group();
   scene.add(root);
-  const animated = { steam: [], mist: [], flames: [], plateSteam: [] };
+  const animated = { steam: [], mist: [], flames: [], plateSteam: [], plateStars: [] };
 
   // ---- Room: bright sky-blue walls, warm cream floor (clearly different) ----
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), mat(CREAM, 0.95));
@@ -238,7 +249,7 @@ export function buildKitchen(scene) {
 
   // ---- Wall decor: MBG poster, clock, window ----
   const poster = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.5),
-    new THREE.MeshStandardMaterial({ map: textTexture(['MBG', 'FREE NUTRITIOUS MEALS'], 512, 340, '#fff7d6', '#d7263d', 'DAPUR MBG • SERVING WITH LOVE'), roughness: 0.9 }));
+    new THREE.MeshStandardMaterial({ map: textTexture(['MBG', 'FREE NUTRITIOUS MEALS'], 512, 340, '#fff7d6', '#d7263d', 'FREE MEALS FOR SCHOOL KIDS'), roughness: 0.9 }));
   poster.position.set(0, 3.5, -5.02); root.add(poster);
   const clock = new THREE.Group();
   const clockFace = cyl(0.42, 0.42, 0.06, WHITE, 0, 0, 0); clock.add(clockFace); clock.rotation.x = Math.PI / 2;
@@ -360,6 +371,13 @@ export function buildKitchen(scene) {
   bell.add(sph(0.03, 0x333333, 0, 0.13, 0)); bell.position.set(0.55, 1.06, 0.3); serve.add(bell);
   const plate1 = cyl(0.22, 0.18, 0.04, WHITE, -0.45, 1.08, 0.3, 20); serve.add(plate1);
   const plateFood = buildIngredientProp('rice', 0.9); plateFood.position.set(-0.45, 1.12, 0.3); serve.add(plateFood);
+  // lunchboxes ready for school kids — the MBG story, in 3D: a stack of
+  // red, gold and blue boxes waiting at the serve window
+  [0xd7263d, 0xffc94d, 0x3fa7d6].forEach((col, i) => {
+    const lb = box(0.34, 0.2, 0.26, col, -0.68 + i * 0.05, 1.16 + i * 0.21, -0.3);
+    lb.rotation.y = 0.12 * i; serve.add(lb);
+    serve.add(box(0.36, 0.05, 0.28, 0xffffff, -0.68 + i * 0.05, 1.28 + i * 0.21, -0.3));
+  });
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.5),
     new THREE.MeshStandardMaterial({ map: textTexture(['SERVE ★', 'PICK UP HERE'], 512, 170, '#d7263d', '#ffffff'), roughness: 0.7 }));
   sign.position.set(0, 2.1, -0.5); serve.add(sign);
@@ -418,6 +436,12 @@ export function buildKitchen(scene) {
       s.material.opacity = 0.6 * (1 - ph);
       s.scale.setScalar(0.8 + ph * 0.9);
     }
+    for (const s of animated.plateStars) {
+      const a = s.userData.angle + t * 1.2;
+      s.position.x = Math.cos(a) * 0.34; s.position.z = Math.sin(a) * 0.34;
+      s.position.y = s.userData.baseY + Math.sin(t * 2 + s.userData.angle * 3) * 0.06;
+      s.rotation.y = t * 2;
+    }
   }
 
   return {
@@ -428,8 +452,12 @@ export function buildKitchen(scene) {
     setFridgeOpen(open) { fridgeDoor.rotation.y = open ? 1.05 : 0; },
     registerPlateSteam(group) {
       animated.plateSteam.length = 0;
-      group.traverse((o) => { if (o.userData && o.userData.steam) animated.plateSteam.push(o); });
+      animated.plateStars.length = 0;
+      group.traverse((o) => {
+        if (o.userData && o.userData.steam) animated.plateSteam.push(o);
+        if (o.userData && o.userData.star) animated.plateStars.push(o);
+      });
     },
-    clearPlateSteam() { animated.plateSteam.length = 0; },
+    clearPlateSteam() { animated.plateSteam.length = 0; animated.plateStars.length = 0; },
   };
 }

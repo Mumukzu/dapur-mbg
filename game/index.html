@@ -82,6 +82,31 @@
   .station-btn:hover { background: #e6f7f7; }
   .station-btn.here { background: #ffc94d; border-color: #b8860b; }
   .station-btn small { display: block; font-size: 10px; color: #888; }
+  .station-btn.coach { border-color: #d7263d; background: #ffe9a8; animation: coachPulse .7s infinite alternate; }
+  @keyframes coachPulse { from { box-shadow: 0 0 0 0 rgba(215,38,61,0); } to { box-shadow: 0 0 0 6px rgba(215,38,61,.45); } }
+  .pick.need { border-color: #d7263d; background: #ffe9a8; animation: coachPulse .7s infinite alternate; }
+  .big-btn.glow { animation: btnGlow 1.2s infinite alternate; }
+  @keyframes btnGlow { from { box-shadow: 0 0 0 0 rgba(255,201,77,0); } to { box-shadow: 0 0 14px 5px rgba(255,201,77,.85); } }
+
+  /* ---- juice: center banner, red flash, floating coins ---- */
+  #banner { position: fixed; top: 66px; left: 50%; transform: translateX(-50%) scale(.8); z-index: 30;
+    background: linear-gradient(#ffc94d, #f2a007); color: #5a2d00; border: 3px solid #b8860b; border-radius: 16px;
+    padding: 10px 26px; font-size: 26px; font-weight: 900; opacity: 0; pointer-events: none; text-align: center;
+    box-shadow: 0 6px 20px rgba(0,0,0,.4); white-space: nowrap; }
+  #banner.show { animation: bannerPop 2.6s ease forwards; }
+  #banner.day { background: linear-gradient(#ffe9a8, #ffc94d); }
+  #banner small { display: block; font-size: 14px; }
+  @keyframes bannerPop { 0% { opacity: 0; transform: translateX(-50%) scale(.6); } 12% { opacity: 1; transform: translateX(-50%) scale(1.08); } 18% { transform: translateX(-50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) scale(1); } }
+  #flash { position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 40%, rgba(215,38,61,.55) 100%); }
+  #flash.show { animation: flashFade .6s ease forwards; }
+  @keyframes flashFade { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 0; } }
+  body.shake #game-canvas { animation: shakeAnim .35s; }
+  @keyframes shakeAnim { 0%,100% { transform: translate(0,0); } 20% { transform: translate(-7px,3px); } 40% { transform: translate(6px,-4px); } 60% { transform: translate(-5px,-2px); } 80% { transform: translate(4px,3px); } }
+  #floaters { position: fixed; inset: 0; z-index: 26; pointer-events: none; overflow: hidden; }
+  .floater { position: absolute; font-size: 22px; font-weight: 900; color: #b8860b;
+    text-shadow: 0 2px 0 #fff, 0 0 8px rgba(255,201,77,.8); animation: floatUp 1.4s ease-out forwards; white-space: nowrap; }
+  @keyframes floatUp { 0% { opacity: 0; transform: translateY(0) scale(.7); } 15% { opacity: 1; transform: translateY(-8px) scale(1.15); } 100% { opacity: 0; transform: translateY(-70px) scale(1); } }
   #hint { background: rgba(33,48,63,.85); color: #fff; font-size: 13px; font-weight: 700;
     padding: 5px 14px; border-radius: 16px; max-width: 640px; text-align: center; }
 
@@ -113,8 +138,6 @@
   .big-btn:hover { background: #e63946; }
   .big-btn:active { transform: translateY(3px); border-bottom-width: 2px; }
   #final-stats { font-size: 17px; margin: 12px 0; }
-  #controls-hint { position: fixed; right: 10px; bottom: 10px; z-index: 9; background: rgba(255,255,255,.85);
-    border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 700; color: #444; }
 </style>
 </head>
 <body>
@@ -161,25 +184,23 @@
   <div id="hint">Welcome to Dapur MBG!</div>
 </div>
 
-<div id="controls-hint">Click a station or press 1–6 • Space = work • P = pause • M = mute • Scroll = zoom</div>
+<div id="banner"></div>
+<div id="flash"></div>
+<div id="floaters"></div>
 
 <div class="overlay" id="title-screen">
   <div class="card">
     <h1>🍳 DAPUR <span>MBG</span></h1>
     <h2>FREE NUTRITIOUS MEAL KITCHEN</h2>
-    <p>Chef Sari is cooking free healthy meals for school kids! Take orders, grab
-    ingredients from the <b>fridge</b> and <b>pantry</b>, <b>chop</b> and <b>cook</b> them,
-    then <b>serve</b> before patience runs out. Lose 3 orders and the shift is over!</p>
+    <p>Chef Sari cooks <b>free healthy lunches for Indonesian school kids</b> — every
+    dish you serve is a lunch in a kid's hands. 🍱</p>
     <div class="howto">
-      🧊 <b>1 Fridge</b> — milk, fish, tofu, fruit &nbsp;•&nbsp; 🥫 <b>2 Pantry</b> — rice, noodle &amp; dry goods<br>
-      🔪 <b>3 Chop</b> then 🍳 <b>4 Cook</b> what is on your tray &nbsp;•&nbsp; 🛎️ <b>5 Serve</b> the plated dish<br>
-      🖱️ Click a station (or press 1–6) to send Chef Sari there &nbsp;•&nbsp; <b>Space</b> works at a station<br>
-      ⭐ Serve fast in a row to build your combo up to <b>x2.0</b> &nbsp;•&nbsp; <b>P</b> pause, <b>M</b> mute<br>
-      🎯 <b>Daily missions</b> — finish 3 goals a day for <b>+20 bonus coins</b> each; a new set every day<br>
-      🎵 Original kitchen BGM loops while you cook &nbsp;•&nbsp; <b>M</b> mutes music + sounds<br>
-      🖱️ <b>Scroll / pinch to zoom</b> &nbsp;•&nbsp; <b>Double-click to reset zoom</b>
+      🧊 <b>1 · Grab</b> ingredients from the fridge &amp; pantry<br>
+      🔪 <b>2 · Chop</b> then 🍳 <b>Cook</b> what's on your tray<br>
+      🛎️ <b>3 · Serve</b> before the patience bar runs out<br>
+      🎯 <b>Daily missions</b> pay +20 bonus coins each &nbsp;•&nbsp; 🎵 Original BGM &nbsp;•&nbsp; Scroll to zoom
     </div>
-    <button class="big-btn" id="start-btn">▶ START SHIFT</button>
+    <button class="big-btn glow" id="start-btn">▶ START SHIFT</button>
     <p style="margin-top:10px; font-size:12px; color:#888;">10 dishes • 16 ingredients • 150-second shifts • a new day every 4 serves</p>
   </div>
 </div>
