@@ -61,8 +61,9 @@ function init() {
   camera.position.set(0, 6.6, 6.6);
   camera.lookAt(0, 0.9, -3.0);
 
-  // orbit camera: drag to rotate, wheel / pinch to zoom, double-click to
-  // reset. A plain click (no drag) still reaches the stations below.
+  // zoom camera: wheel / pinch to zoom, double-click to reset the zoom.
+  // Dragging moves nothing (rotation removed). A plain click (no drag)
+  // still reaches the stations below.
   orbit = createOrbitCamera(camera, canvas, {
     onTap: (e) => {
       if (state !== 'playing') return;
@@ -529,7 +530,7 @@ function tick() {
   const dt = Math.min(clock.getDelta(), 0.25); // generous cap: slow machines still play in real time
   const t = clock.elapsedTime;
   orbit.update(dt); // damped orbit — runs in every state, incl. title
-  kitchen.update(dt, t, camera); // steam/mist + wall fade for the 180° orbit
+  kitchen.update(dt, t); // steam/mist
 
   if (state === 'playing') {
     orderMgr.update(dt);
@@ -578,7 +579,6 @@ window.__mbg = {
   missions: () => missionMgr.state(),
   music: () => SFX.musicStats(),
   camera: () => orbit.state(),
-  walls: () => kitchen.wallState(), // [back, left, right] opacity 0..1
   // project a 3D point to screen pixels (for playtest click targeting)
   screenPoint: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);

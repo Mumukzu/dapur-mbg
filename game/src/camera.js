@@ -1,10 +1,9 @@
-// camera.js — custom orbit camera: drag to rotate, wheel / pinch to zoom,
-// double-click / double-tap to reset. No libraries, no CDN — ~140 lines.
-// The camera orbits a fixed target (the kitchen centre) on a sphere:
-// azimuth (side to side, FULL 360° — the walls fade when the camera swings
-// behind them, so no angle is ever blocked), polar (height), distance
-// (zoom). Polar and distance are clamped so the camera never goes under the
-// floor or so far it loses the kitchen. Movement is damped (goal vs current).
+// camera.js — zoom-only camera: wheel / pinch to zoom, double-click /
+// double-tap to reset the zoom. No rotation: dragging the mouse never moves
+// the camera (Mu: the spinning view looked messy). No libraries, no CDN.
+// The camera sits at a fixed angle on the default view; distance (zoom)
+// is clamped so it never goes under the floor or so far it loses the
+// kitchen. Movement is damped (goal vs current).
 import * as THREE from 'three';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -24,10 +23,8 @@ export const CAMERA_DEFAULTS = {
   distance: 11.16,
 };
 
-// Azimuth is NOT clamped: the camera orbits a full 360° (180° to the
-// opposite side and beyond). The kitchen walls fade out whenever one stands
-// between the camera and the kitchen (see kitchen.js updateWallFade), so no
-// angle is ever blocked by a wall.
+// Azimuth is fixed: no input ever changes it (screenshot presets may set
+// their own angle via syncFromCamera, and it stays put after that).
 export const CAMERA_LIMITS = {
   minDistance: 6, maxDistance: 16,
   minPolar: 0.35, maxPolar: 1.25,
@@ -68,8 +65,8 @@ export function createOrbitCamera(camera, dom, opts = {}) {
 
   function update(dt) {
     const k = 1 - Math.exp(-dt * 10); // frame-rate independent damping
-    // shortest-arc damping for azimuth: across the ±PI wrap the camera
-    // must take the short way round, never the long way through the front
+    // shortest-arc damping for azimuth (only presets set it, via
+    // syncFromCamera — no input changes it after that)
     cur.azimuth = wrapAngle(cur.azimuth + wrapAngle(goal.azimuth - cur.azimuth) * k);
     cur.polar += (goal.polar - cur.polar) * k;
     cur.distance += (goal.distance - cur.distance) * k;
@@ -127,11 +124,8 @@ export function createOrbitCamera(camera, dom, opts = {}) {
     if (pointers.size === 1) {
       moved += Math.abs(dx) + Math.abs(dy);
       if (moved > 5) dragging = true; // >5px = a drag, not a click
-      if (dragging) {
-        // azimuth is free: full 360° orbit, wrapped so it never grows
-        goal.azimuth = wrapAngle(goal.azimuth - dx * 0.005);
-        goal.polar = clamp(goal.polar - dy * 0.005, CAMERA_LIMITS.minPolar, CAMERA_LIMITS.maxPolar);
-      }
+      // a drag moves nothing: rotation was removed (Mu: it looked messy).
+      // dragging is still tracked so a drag is never mistaken for a tap.
     }
   }
 

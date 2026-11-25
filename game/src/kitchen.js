@@ -250,55 +250,6 @@ export function buildKitchen(scene) {
   winParts.forEach((p) => win.add(p));
   win.position.set(-3.4, 3.7, -5.0); root.add(win);
 
-  // ---- Wall fade for the 180° orbit ----
-  // When the camera swings behind a wall, that wall (and the decor on it)
-  // fades to near-invisible so it never blocks the kitchen. Each wall is
-  // its own group; materials are made transparent-capable up front (opacity
-  // 1 renders identically to opaque). Faded walls also stop writing depth
-  // and casting shadows, or they would still hide the kitchen behind them.
-  const fadeGroups = [
-    { name: 'back', meshes: [backWall, baseboard, poster, clockFace, hand, ...winParts], cur: 1 },
-    { name: 'left', meshes: [leftWall], cur: 1 },
-    { name: 'right', meshes: [rightWall], cur: 1 },
-  ];
-  fadeGroups.forEach((g) => g.meshes.forEach((m) => { m.material.transparent = true; }));
-  // Does the camera's view ray hit this wall's plane inside the wall's
-  // bounds? If so the wall stands between the camera and the kitchen.
-  const _dir = new THREE.Vector3();
-  function rayHitsWall(camera, axis, plane, inBounds) {
-    camera.getWorldDirection(_dir);
-    const d = _dir[axis];
-    if (Math.abs(d) < 1e-6) return false;
-    const t = (plane - camera.position[axis]) / d;
-    if (t <= 0) return false;
-    const x = camera.position.x + _dir.x * t;
-    const y = camera.position.y + _dir.y * t;
-    const z = camera.position.z + _dir.z * t;
-    return inBounds(x, y, z);
-  }
-  function updateWallFade(camera, dt) {
-    if (!camera) return;
-    const blocking = {
-      // back wall front face z=-5.05, 14 wide, 5.2 tall
-      back: rayHitsWall(camera, 'z', -5.05, (x, y) => Math.abs(x) <= 7 && y >= 0 && y <= 5.2),
-      // side walls front faces x=∓6.85, z -5.5..4.5, 5.2 tall
-      left: rayHitsWall(camera, 'x', -6.85, (x, y, z) => z >= -5.5 && z <= 4.5 && y >= 0 && y <= 5.2),
-      right: rayHitsWall(camera, 'x', 6.85, (x, y, z) => z >= -5.5 && z <= 4.5 && y >= 0 && y <= 5.2),
-    };
-    const k = 1 - Math.exp(-dt * 8); // ~0.3 s fade
-    for (const g of fadeGroups) {
-      const target = blocking[g.name] ? 0.08 : 1;
-      g.cur += (target - g.cur) * k;
-      if (Math.abs(g.cur - target) < 0.005) g.cur = target;
-      const solid = g.cur > 0.5;
-      for (const m of g.meshes) {
-        m.material.opacity = g.cur;
-        m.material.depthWrite = solid;
-        m.castShadow = solid;
-      }
-    }
-  }
-
   // two pendant lamps, clear of the MBG poster in the middle
   for (const lx of [-2.8, 2.8]) {
     const lamp = new THREE.Group();
@@ -450,8 +401,7 @@ export function buildKitchen(scene) {
     island: { pos: new THREE.Vector3(0, 0, 0.9), face: new THREE.Vector3(0, 0, -0.7) },
   };
 
-  function update(dt, t, camera) {
-    updateWallFade(camera, dt);
+  function update(dt, t) {
     for (const s of animated.steam) {
       s.position.y = 1.45 + ((t * 0.35 + s.userData.rise) % 1) * 0.7;
       s.material.opacity = 0.65 * (1 - ((t * 0.35 + s.userData.rise) % 1));
@@ -472,8 +422,6 @@ export function buildKitchen(scene) {
 
   return {
     root, stations, island, fridgeDoor, update,
-    // per-wall current opacity (back, left, right) — debug/readout only
-    wallState: () => fadeGroups.map((g) => +g.cur.toFixed(2)),
     // 1.05 rad (~60°): the door stands diagonally out into the open floor,
     // its "7 FRIDGE" face visible from the camera. (A full 1.9 rad swing
     // turns the face edge-on to the default camera and the door vanishes.)
