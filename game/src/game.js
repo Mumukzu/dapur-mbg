@@ -353,7 +353,7 @@ function setHint(t) { $('hint').textContent = t; }
 
 // ---------- game flow ----------
 function startGame() {
-  SFX.ensureAudio(); SFX.playStart();
+  SFX.ensureAudio(); SFX.playStart(); SFX.startMusic();
   orderMgr.start();
   missionMgr.start(1);
   tray = []; clearPlate(); refreshTrayProps();
@@ -371,6 +371,7 @@ function startGame() {
 
 function endGame(finished, reason) {
   state = 'over';
+  SFX.stopMusic();
   SFX.playWin();
   const st = orderMgr.state();
   $('final-reason').textContent = reason;
@@ -380,8 +381,8 @@ function endGame(finished, reason) {
 }
 
 function togglePause() {
-  if (state === 'playing') { state = 'paused'; $('pause-screen').classList.remove('hidden'); }
-  else if (state === 'paused') { state = 'playing'; $('pause-screen').classList.add('hidden'); }
+  if (state === 'playing') { state = 'paused'; SFX.pauseMusic(); $('pause-screen').classList.remove('hidden'); }
+  else if (state === 'paused') { state = 'playing'; SFX.resumeMusic(); $('pause-screen').classList.add('hidden'); }
 }
 
 // ---------- UI ----------
@@ -554,6 +555,7 @@ window.__mbg = {
   tray: () => tray.map((t) => t.id),
   plated: () => (plated ? plated.id : null),
   missions: () => missionMgr.state(),
+  music: () => SFX.musicStats(),
 };
 
 init();
