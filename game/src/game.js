@@ -6,6 +6,7 @@ import { buildKitchen, buildIngredientProp, buildPlatedDish } from './kitchen.js
 import { buildChef } from './chef.js';
 import { createOrderManager } from './orders.js';
 import { createMissionManager, MISSION_BONUS } from './missions.js';
+import { createOrbitCamera } from './camera.js';
 import * as SFX from './audio.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,7 +16,19 @@ const params = new URLSearchParams(location.search);
 const SHOT = params.get('shot') || '';
 
 let renderer, scene, camera, clock;
+let orbit;
 let kitchen, chef, chefTarget = null, chefStation = null;
+let rayTargets = [];
+const ray = new THREE.Raycaster();
+// Raycast a pointer event against the invisible station hit boxes.
+// Returns the station id or null — shared by tap handling and the
+// camera's hitTest (a double-tap on a station is two clicks, not a reset).
+function stationAt(e) {
+  const m = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(m, camera);
+  const hit = ray.intersectObjects(rayTargets)[0];
+  return hit ? hit.object.userData.station : null;
+}
 let tray = []; // { id, chopped, cooked }
 let plated = null; // dish object on the island
 let plateMesh = null;
@@ -48,6 +61,18 @@ function init() {
   camera.position.set(0, 6.6, 6.6);
   camera.lookAt(0, 0.9, -3.0);
 
+  // orbit camera: drag to rotate, wheel / pinch to zoom, double-click to
+  // reset. A plain click (no drag) still reaches the stations below.
+  orbit = createOrbitCamera(camera, canvas, {
+    onTap: (e) => {
+      if (state !== 'playing') return;
+      SFX.ensureAudio();
+      const id = stationAt(e);
+      if (id) goToStation(id, true);
+    },
+    hitTest: (e) => !!stationAt(e),
+  });
+
   scene.add(new THREE.AmbientLight(0xfff4e0, 0.85));
   const sun = new THREE.DirectionalLight(0xfff1d6, 1.6);
   sun.position.set(5, 10, 6); sun.castShadow = true;
@@ -63,8 +88,7 @@ function init() {
   chef.group.position.set(0, 0, 1.6);
   scene.add(chef.group);
 
-  // invisible click targets on the stations
-  const rayTargets = [];
+  // invisible click targets on the stations (raycast by stationAt)
   for (const st of STATIONS) {
     const s = kitchen.stations[st.id];
     const hit = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.4, 1.6), new THREE.MeshBasicMaterial({ visible: false }));
@@ -72,15 +96,6 @@ function init() {
     hit.userData.station = st.id;
     scene.add(hit); rayTargets.push(hit);
   }
-  const ray = new THREE.Raycaster();
-  canvas.addEventListener('pointerdown', (e) => {
-    if (state !== 'playing') return;
-    SFX.ensureAudio();
-    const m = new THREE.Vector2((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-    ray.setFromCamera(m, camera);
-    const hit = ray.intersectObjects(rayTargets)[0];
-    if (hit) goToStation(hit.object.userData.station, true);
-  });
 
   orderMgr = createOrderManager(onOrderEvent);
   missionMgr = createMissionManager(onMissionEvent);
@@ -89,6 +104,7 @@ function init() {
   addEventListener('resize', onResize);
   renderer.setAnimationLoop(tick);
   if (SHOT) applyShot(SHOT);
+  orbit.syncFromCamera(); // adopt the shot's camera (or the default) as the orbit state
   renderOrders();
   updateHUD();
 }
@@ -447,6 +463,10 @@ function applyShot(shot) {
     $('dock').style.transform = 'none';
     camera.position.set(1.1, 6.6, 6.6);
     camera.lookAt(-0.5, 0.9, -3.0);
+    // the cover shot looks at a point left of the default target — tell the
+    // orbit camera, or its first update() would swing back to the default
+    orbit.setTarget(new THREE.Vector3(-0.5, 0.9, -3.0));
+    orbit.syncFromCamera();
     // 3 orders, not 4: the board now also carries the missions panel, and a
     // 4th order pushes the panel's bottom rows under the dock's PLATED banner.
     forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40], ['beef-potato', 22]]);
@@ -508,6 +528,7 @@ function applyShot(shot) {
 function tick() {
   const dt = Math.min(clock.getDelta(), 0.25); // generous cap: slow machines still play in real time
   const t = clock.elapsedTime;
+  orbit.update(dt); // damped orbit — runs in every state, incl. title
   kitchen.update(dt, t);
 
   if (state === 'playing') {
@@ -556,6 +577,7 @@ window.__mbg = {
   plated: () => (plated ? plated.id : null),
   missions: () => missionMgr.state(),
   music: () => SFX.musicStats(),
+  camera: () => orbit.state(),
 };
 
 init();
