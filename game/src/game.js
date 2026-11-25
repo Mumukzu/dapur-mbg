@@ -36,7 +36,7 @@ function init() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.14;
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x9fd8f7);
@@ -53,8 +53,8 @@ function init() {
   sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
   sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
   scene.add(sun);
-  const warm = new THREE.PointLight(0xffd27a, 25, 12, 1.8);
-  warm.position.set(0, 4.2, -0.6); scene.add(warm);
+  const warm = new THREE.PointLight(0xffd27a, 38, 12, 1.8);
+  warm.position.set(0, 3.8, -0.7); scene.add(warm); // warm pool over the island / food area
 
   kitchen = buildKitchen(scene);
   chef = buildChef();
@@ -328,6 +328,9 @@ function startGame() {
   state = 'playing';
   $('title-screen').classList.add('hidden');
   $('gameover-screen').classList.add('hidden');
+  // dock back to its default centered position (a shot may have moved it)
+  $('dock').style.left = '';
+  $('dock').style.transform = '';
   setHint('New shift! Check the order board, then grab ingredients.');
   renderOrders(); updateHUD();
 }
@@ -402,6 +405,11 @@ function applyShot(shot) {
     // sit in the open left half instead of hiding behind the title card
     ts.querySelector('.card').style.maxWidth = '500px';
     ts.querySelector('.card').style.padding = '20px 22px';
+    // dock to the bottom-LEFT: the PLATED banner is inside the dock, and a
+    // centered dock slides its right end under the right-side title card
+    // (z-index 20 over the dock's 10). Left-aligned it reads in full.
+    $('dock').style.left = '24px';
+    $('dock').style.transform = 'none';
     camera.position.set(1.1, 6.6, 6.6);
     camera.lookAt(-0.5, 0.9, -3.0);
     forceOrders([['sunshine-rice', 48], ['chicken-noodle', 40], ['beef-potato', 22], ['fruit-milk', 33]]);

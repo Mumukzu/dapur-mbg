@@ -173,15 +173,40 @@ export function buildPlatedDish(dish) {
     const leaf = sph(0.045, 0x2c7a3a, -0.14 + i * 0.14, 0.19, 0.14);
     leaf.scale.set(1.4, 0.35, 0.9); g.add(leaf);
   }
-  // sauce drizzle: thin red/gold arc on the plate rim
+  // one dish-specific accent so no two plates garnish alike
+  if (has('fish')) {
+    // lemon wedge: flat yellow half-disc beside the fish
+    const lemon = cyl(0.09, 0.09, 0.02, 0xffe066, 0.13, 0.2, 0.1, 16); g.add(lemon);
+    const lemonSkin = cyl(0.095, 0.095, 0.015, 0xf2a007, 0.13, 0.19, 0.1, 16); g.add(lemonSkin);
+  } else if (has('tomato')) {
+    // tomato slice: red disc with a green leaf
+    const slice = cyl(0.09, 0.09, 0.025, 0xe63946, -0.13, 0.2, 0.1, 16); g.add(slice);
+    const seed = sph(0.03, 0xff8fa3, -0.13, 0.22, 0.1); g.add(seed);
+  } else if (has('fruit')) {
+    // orange slice: orange disc + a mint leaf
+    const orange = cyl(0.09, 0.09, 0.025, 0xff8c42, 0.12, 0.2, -0.1, 16); g.add(orange);
+    const mint = sph(0.05, 0x2c7a3a, 0.12, 0.23, -0.1); mint.scale.set(1.3, 0.3, 1); g.add(mint);
+  } else if (has('noodle')) {
+    // sesame seeds + spring-onion rings on noodle dishes
+    for (let i = 0; i < 4; i++) {
+      const seed = sph(0.018, 0xfff8dc, -0.12 + (i % 2) * 0.24, 0.21, -0.06 + Math.floor(i / 2) * 0.14, 6, 5);
+      g.add(seed);
+    }
+    for (let i = 0; i < 2; i++) {
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.012, 6, 12), mat(0x3fa34d, 0.6));
+      ring.rotation.x = Math.PI / 2; ring.position.set(0.02 + i * 0.12, 0.2, 0.14); g.add(ring);
+    }
+  }
+  // sauce drizzle: thin red/gold/orange arc on the plate rim
+  const drizzleColor = (has('chili') || has('tomato')) ? 0xd7263d : has('fruit') ? 0xff8c42 : 0xf2a007;
   const drizzle = new THREE.Mesh(
     new THREE.TorusGeometry(0.28, 0.015, 8, 24, Math.PI * 1.2),
-    new THREE.MeshStandardMaterial({ color: has('chili') ? 0xd7263d : 0xf2a007, roughness: 0.3 }));
+    new THREE.MeshStandardMaterial({ color: drizzleColor, roughness: 0.3 }));
   drizzle.rotation.x = Math.PI / 2; drizzle.rotation.z = 0.4; drizzle.position.y = 0.065; g.add(drizzle);
   // steam wisps (registered with the kitchen so they animate)
   for (let i = 0; i < 3; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, roughness: 1 }));
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, roughness: 1 }));
     s.position.set(-0.1 + i * 0.1, 0.35, 0);
     s.userData.steam = true; s.userData.baseY = 0.35; s.userData.rise = i * 0.33;
     g.add(s);
@@ -245,10 +270,15 @@ export function buildKitchen(scene) {
   const fridge = new THREE.Group();
   const body = box(1.7, 2.9, 1.05, WHITE, 0, 1.45, 0, 0.5); fridge.add(body);
   const freezerDoor = box(1.62, 0.85, 0.08, 0xffffff, 0, 2.42, 0.55, 0.4); fridge.add(freezerDoor);
+  // hinge on the RIGHT side: the door swings open toward the chopping
+  // board (open floor), never toward the pantry rack on the left — so the
+  // open door, its "7 FRIDGE" label and the cold interior read clearly
+  // from the default / cover camera angle.
   const fridgeDoor = new THREE.Group(); // swings open
-  fridgeDoor.position.set(-0.81, 1.5, 0.55);
-  const doorPanel = box(1.62, 1.9, 0.08, 0xffffff, 0.81, 0, 0, 0.4); fridgeDoor.add(doorPanel);
-  const handle = box(0.07, 1.5, 0.06, STEEL, 1.5, 0.1, 0.08, 0.35); fridgeDoor.add(handle);
+  fridgeDoor.position.set(0.81, 1.5, 0.55);
+  const doorPanel = box(1.62, 1.9, 0.08, 0xffffff, -0.81, 0, 0, 0.4); fridgeDoor.add(doorPanel);
+  const handle = box(0.07, 1.5, 0.06, STEEL, -1.5, 0.1, 0.08, 0.35); fridgeDoor.add(handle);
+  fridge.add(fridgeDoor); // the door group must be in the scene to be seen
   const handleTop = box(0.07, 0.6, 0.06, STEEL, 0.72, 2.35, 0.6, 0.35); fridge.add(handleTop);
   // magnets: little coloured squares on the doors
   [[-0.5, 2.6, 0xff5a5a], [-0.2, 2.45, 0x3fa7d6], [0.3, 2.7, 0xffc94d], [-0.45, 1.9, 0x7bc043], [0.45, 2.1, 0xff8c42], [0.1, 1.6, 0x9b5de5]].forEach(([x, y, col]) => {
@@ -260,7 +290,7 @@ export function buildKitchen(scene) {
   badge.position.set(0, 2.42, 0.6); fridge.add(badge);
   const label = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.55),
     new THREE.MeshStandardMaterial({ map: textTexture(['7 FRIDGE', 'COLD • FRESH • MBG'], 512, 256, '#fff7d6', '#d7263d'), roughness: 0.6 }));
-  label.position.set(0.81, -0.35, 0.06); fridgeDoor.add(label);
+  label.position.set(-0.81, -0.35, 0.06); fridgeDoor.add(label);
   // cold-air mist at the door base
   for (let i = 0; i < 4; i++) {
     const puff = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8),
@@ -302,8 +332,8 @@ export function buildKitchen(scene) {
       new THREE.MeshStandardMaterial({ color: 0xff9f1c, emissive: 0xff7b00, emissiveIntensity: 2 }));
     flame.position.set(px, 1.0, 0.28); stove.add(flame); animated.flames.push(flame);
     for (let i = 0; i < 3; i++) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
-        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, roughness: 1 }));
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, roughness: 1 }));
       s.position.set(px + (Math.random() - 0.5) * 0.15, 1.45 + i * 0.18, 0);
       s.userData.rise = i * 0.33; stove.add(s); animated.steam.push(s);
     }
@@ -340,8 +370,8 @@ export function buildKitchen(scene) {
   island.add(box(3.6, 0.9, 1.3, 0xe8e2d4, 0, 0.45, 0));
   island.add(box(3.8, 0.1, 1.5, WOOD, 0, 0.95, 0));
   island.add(box(3.8, 0.08, 0.08, WOOD_DARK, 0, 0.5, 0.72));
-  // ingredients waiting on the island
-  const islandGoods = [['rice', -1.4], ['egg', -0.95], ['chili', 1.35], ['fruit', 1.55]];
+  // ingredients waiting on the island (a full, busy counter)
+  const islandGoods = [['rice', -1.4], ['egg', -0.95], ['veggies', -0.45], ['tomato', 0.45], ['noodle', 0.95], ['chili', 1.35], ['fruit', 1.55]];
   islandGoods.forEach(([id, x]) => { const p = buildIngredientProp(id, 0.95); p.position.set(x, 1.0, -0.25); island.add(p); });
   island.position.set(0, 0, -0.7);
   root.add(island);
@@ -373,7 +403,7 @@ export function buildKitchen(scene) {
   function update(dt, t) {
     for (const s of animated.steam) {
       s.position.y = 1.45 + ((t * 0.35 + s.userData.rise) % 1) * 0.7;
-      s.material.opacity = 0.55 * (1 - ((t * 0.35 + s.userData.rise) % 1));
+      s.material.opacity = 0.65 * (1 - ((t * 0.35 + s.userData.rise) % 1));
       s.scale.setScalar(0.7 + ((t * 0.35 + s.userData.rise) % 1) * 0.9);
     }
     animated.mist.forEach((m, i) => {
@@ -384,14 +414,17 @@ export function buildKitchen(scene) {
     for (const s of animated.plateSteam) {
       const ph = (t * 0.4 + s.userData.rise) % 1;
       s.position.y = s.userData.baseY + ph * 0.5;
-      s.material.opacity = 0.5 * (1 - ph);
+      s.material.opacity = 0.6 * (1 - ph);
       s.scale.setScalar(0.8 + ph * 0.9);
     }
   }
 
   return {
     root, stations, island, fridgeDoor, update,
-    setFridgeOpen(open) { fridgeDoor.rotation.y = open ? -1.9 : 0; },
+    // 1.05 rad (~60°): the door stands diagonally out into the open floor,
+    // its "7 FRIDGE" face visible from the camera. (A full 1.9 rad swing
+    // turns the face edge-on to the default camera and the door vanishes.)
+    setFridgeOpen(open) { fridgeDoor.rotation.y = open ? 1.05 : 0; },
     registerPlateSteam(group) {
       animated.plateSteam.length = 0;
       group.traverse((o) => { if (o.userData && o.userData.steam) animated.plateSteam.push(o); });
