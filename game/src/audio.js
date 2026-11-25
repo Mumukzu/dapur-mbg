@@ -1,123 +1,66 @@
-// Dapur MBG — every sound is synthesized with WebAudio. No audio files,
-// no network: oscillators and filtered noise, built fresh on each call.
-
-let context = null;
+// audio.js — all sound is synthesized with WebAudio. No audio files, no network.
+let ctx = null;
 let muted = false;
-let noiseBuffer = null;
 
-export function setMuted(value) {
-  muted = value;
-}
-
-export function isMuted() {
-  return muted;
-}
-
-function audioContext() {
-  if (context) return context;
-  const Ctor = window.AudioContext || window.webkitAudioContext;
-  if (!Ctor) return null;
-  context = new Ctor();
-  return context;
-}
-
-// Warm the audio context on the first user gesture so later sounds play.
-export function unlockAudio() {
-  const ctx = audioContext();
+export function ensureAudio() {
+  if (!ctx) {
+    try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { ctx = null; }
+  }
   if (ctx && ctx.state === 'suspended') ctx.resume();
+  return ctx;
 }
 
-function getNoise(ctx) {
-  if (noiseBuffer) return noiseBuffer;
-  const length = ctx.sampleRate * 0.5;
-  noiseBuffer = ctx.createBuffer(1, length, ctx.sampleRate);
-  const data = noiseBuffer.getChannelData(0);
-  for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
-  return noiseBuffer;
-}
+export function isMuted() { return muted; }
+export function toggleMute() { muted = !muted; return muted; }
 
-function tone(freq, dur, type, volume, slideTo) {
+function tone(freq, dur, type, vol, when = 0, slideTo = 0) {
   if (muted) return;
-  const ctx = audioContext();
-  if (!ctx) return;
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  const ac = ensureAudio();
+  if (!ac) return;
+  const t0 = ac.currentTime + when;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
   osc.type = type;
-  osc.frequency.setValueAtTime(freq, now);
-  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, now + dur);
-  gain.gain.setValueAtTime(volume, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + dur + 0.02);
+  osc.frequency.setValueAtTime(freq, t0);
+  if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(ac.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
 }
 
-function noise(dur, volume, filterFreq, type) {
+function noise(dur, vol, when = 0, lowpass = 1200) {
   if (muted) return;
-  const ctx = audioContext();
-  if (!ctx) return;
-  const now = ctx.currentTime;
-  const src = ctx.createBufferSource();
-  src.buffer = getNoise(ctx);
-  src.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = type || 'bandpass';
-  filter.frequency.value = filterFreq;
-  filter.Q.value = 0.8;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(volume, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
-  src.connect(filter);
-  filter.connect(gain);
-  gain.connect(ctx.destination);
-  src.start(now);
-  src.stop(now + dur + 0.02);
+  const ac = ensureAudio();
+  if (!ac) return;
+  const t0 = ac.currentTime + when;
+  const len = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const filter = ac.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = lowpass;
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(vol, t0);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(filter).connect(gain).connect(ac.destination);
+  src.start(t0);
 }
 
-export function playSizzle() {
-  noise(0.5, 0.16, 5200, 'highpass');
-  noise(0.35, 0.1, 2600, 'bandpass');
-}
-
-export function playChop() {
-  noise(0.09, 0.3, 900, 'lowpass');
-  tone(180, 0.07, 'triangle', 0.22, 90);
-}
-
-export function playDing() {
-  tone(880, 0.35, 'sine', 0.2);
-  tone(1318, 0.45, 'sine', 0.14);
-}
-
-export function playServePop() {
-  tone(520, 0.1, 'square', 0.12, 780);
-  tone(1040, 0.22, 'sine', 0.16, 1560);
-}
-
-export function playCoin() {
-  tone(988, 0.09, 'sine', 0.18);
-  tone(1319, 0.2, 'sine', 0.18);
-}
-
-export function playTick() {
-  tone(1200, 0.05, 'square', 0.07);
-}
-
-export function playFail() {
-  tone(220, 0.3, 'sawtooth', 0.14, 110);
-}
-
-export function playGrab() {
-  tone(340, 0.07, 'triangle', 0.14, 460);
-}
-
-export function playBurn() {
-  noise(0.4, 0.2, 300, 'lowpass');
-  tone(140, 0.4, 'sawtooth', 0.12, 70);
-}
-
-export function playClick() {
-  tone(600, 0.05, 'triangle', 0.1);
-}
+export function playClick()  { tone(660, 0.07, 'triangle', 0.12); }
+export function playPick()   { tone(520, 0.09, 'sine', 0.14); tone(780, 0.1, 'sine', 0.1, 0.06); }
+export function playChop()   { noise(0.08, 0.25, 0, 2500); tone(180, 0.06, 'square', 0.08); }
+export function playSizzle() { noise(0.5, 0.12, 0, 4000); noise(0.4, 0.08, 0.15, 5000); }
+export function playDing()   { tone(880, 0.18, 'sine', 0.16); tone(1318, 0.3, 'sine', 0.12, 0.1); }
+export function playServe()  { tone(523, 0.12, 'triangle', 0.16); tone(659, 0.12, 'triangle', 0.16, 0.09); tone(784, 0.22, 'triangle', 0.18, 0.18); }
+export function playCoin()   { tone(988, 0.08, 'square', 0.1); tone(1319, 0.16, 'square', 0.1, 0.07); }
+export function playFail()   { tone(220, 0.25, 'sawtooth', 0.12, 0, 110); }
+export function playTick()   { tone(1200, 0.04, 'square', 0.06); }
+export function playStart()  { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.14, 'triangle', 0.15, i * 0.09)); }
+export function playWin()    { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, 0.2, 'triangle', 0.16, i * 0.11)); }
+export function playFridge() { noise(0.35, 0.1, 0, 800); tone(300, 0.2, 'sine', 0.06, 0, 520); }

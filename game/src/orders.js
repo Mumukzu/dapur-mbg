@@ -1,105 +1,89 @@
-// Dapur MBG — the order board: spawning tickets, patience timers,
-// matching a finished plate against an open ticket, and scoring a serve.
+// orders.js — order board logic: spawning, patience timers, combo, coins,
+// day/level progression, lost orders and the shift timer.
+import { DISHES, LEVELS, SHIFT_SECONDS, MAX_LOST } from './config.js';
 
-import { LEVEL, MAX_ORDERS, RECIPES } from './config.js';
+export function createOrderManager(onEvent) {
+  let orders = [];
+  let nextId = 1;
+  let spawnTimer = 0;
+  let elapsed = 0;
+  let coins = 0;
+  let score = 0;
+  let combo = 0;
+  let comboTimer = 0;
+  let bestCombo = 0;
+  let served = 0;
+  let lost = 0;
+  let day = 1;
+  let over = false;
 
-let nextOrderId = 1;
+  function level() { return LEVELS[Math.min(day - 1, LEVELS.length - 1)]; }
+  function timeLeft() { return Math.max(0, SHIFT_SECONDS - elapsed); }
 
-export function createOrderBoard() {
-  return { orders: [], spawnTimer: 6, served: 0, lost: 0 };
-}
-
-function pickRecipe(level, rng) {
-  // Early levels only serve the two-ingredient dishes; the full menu opens
-  // as the day goes on, so the first minutes teach the loop.
-  const pool = level >= 3 ? RECIPES : level >= 2 ? RECIPES.slice(0, 4) : RECIPES.slice(3);
-  return pool[Math.floor(rng() * pool.length)];
-}
-
-export function spawnOrder(board, level, rng) {
-  if (board.orders.length >= MAX_ORDERS) return null;
-  const recipe = pickRecipe(level, rng);
-  const patience = recipe.patience * Math.pow(LEVEL.patienceScale, level - 1);
-  const order = {
-    id: nextOrderId,
-    recipe,
-    patience,
-    timeLeft: patience,
-    bornAt: 0,
-    slide: 0, // 0..1 slide-in animation progress
-    urgent: false,
-  };
-  nextOrderId += 1;
-  board.orders.push(order);
-  return order;
-}
-
-// Advance timers. Returns the orders that just expired.
-export function updateOrders(board, dt, level, rng) {
-  const expired = [];
-  board.spawnTimer -= dt;
-  if (board.spawnTimer <= 0) {
-    const made = spawnOrder(board, level, rng);
-    if (made) board.spawnTimer = LEVEL.spawnEvery * Math.pow(LEVEL.spawnScale, level - 1);
-    else board.spawnTimer = 2;
-    if (board.spawnTimer < LEVEL.minSpawn) board.spawnTimer = LEVEL.minSpawn;
+  function spawnOrder() {
+    const lv = level();
+    if (orders.length >= lv.ordersAtOnce) return;
+    const dish = DISHES[Math.floor(Math.random() * DISHES.length)];
+    orders.push({ id: nextId++, dish, patience: lv.patience, maxPatience: lv.patience, state: 'waiting' });
+    onEvent('order', orders[orders.length - 1]);
   }
-  for (let i = board.orders.length - 1; i >= 0; i -= 1) {
-    const order = board.orders[i];
-    order.timeLeft -= dt;
-    if (order.slide < 1) order.slide = Math.min(1, order.slide + dt * 3);
-    const ratio = order.timeLeft / order.patience;
-    order.urgent = ratio < 0.3;
-    if (order.timeLeft <= 0) {
-      expired.push(order);
-      board.orders.splice(i, 1);
-      board.lost += 1;
+
+  function start() {
+    orders = []; elapsed = 0; coins = 0; score = 0; combo = 0; bestCombo = 0;
+    served = 0; lost = 0; day = 1; over = false; spawnTimer = 0;
+    spawnOrder(); spawnOrder();
+  }
+
+  function comboMultiplier() { return 1 + Math.min(combo, 10) * 0.1; } // up to x2.0
+
+  function serveDish(dish) {
+    const idx = orders.findIndex((o) => o.dish.id === dish.id && o.state === 'waiting');
+    if (idx < 0) {
+      score += 2; // a plate nobody ordered: tiny pity points
+      onEvent('serve-miss', dish);
+      return { ok: false, earned: 2 };
     }
+    const order = orders[idx];
+    const speedBonus = Math.round((order.patience / order.maxPatience) * 5);
+    const mult = comboMultiplier();
+    const earned = Math.round((dish.price + speedBonus) * mult);
+    orders.splice(idx, 1);
+    coins += earned;
+    score += earned * 10;
+    served += 1;
+    combo += 1;
+    comboTimer = 12;
+    bestCombo = Math.max(bestCombo, combo);
+    if (served % 4 === 0 && day < LEVELS.length) { day += 1; onEvent('day', day); }
+    onEvent('serve', { dish, earned, combo, mult });
+    return { ok: true, earned };
   }
-  return expired;
-}
 
-export function orderRatio(order) {
-  return Math.max(0, order.timeLeft / order.patience);
-}
-
-// Does the plate (array of {ing, state}) match this order exactly?
-export function plateMatchesOrder(plate, order) {
-  const needs = order.recipe.needs;
-  if (plate.length !== needs.length) return false;
-  const used = new Array(needs.length).fill(false);
-  for (const item of plate) {
-    let found = false;
-    for (let i = 0; i < needs.length; i += 1) {
-      if (!used[i] && needs[i].ing === item.ing && needs[i].state === item.state) {
-        used[i] = true;
-        found = true;
-        break;
-      }
+  function update(dt) {
+    if (over) return;
+    elapsed += dt;
+    if (comboTimer > 0) { comboTimer -= dt; if (comboTimer <= 0) combo = 0; }
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) { spawnOrder(); spawnTimer = level().spawnEvery; }
+    for (const o of orders) o.patience -= dt;
+    const expired = orders.filter((o) => o.patience <= 0);
+    for (const o of expired) {
+      orders.splice(orders.indexOf(o), 1);
+      lost += 1; combo = 0;
+      onEvent('lost', o);
     }
-    if (!found) return false;
+    if (lost >= MAX_LOST) { over = true; onEvent('over-lost'); }
+    else if (timeLeft() <= 0) { over = true; onEvent('over-time'); }
   }
-  return true;
-}
 
-// Find the first open order the plate satisfies, or null.
-export function findMatchingOrder(board, plate) {
-  for (const order of board.orders) {
-    if (plateMatchesOrder(plate, order)) return order;
+  function state() {
+    return { orders, coins, score, combo, bestCombo, served, lost, day, over, timeLeft: timeLeft(), mult: comboMultiplier() };
   }
-  return null;
-}
 
-// Score for serving an order: dish price, a speed bonus for serving early,
-// and the combo multiplier the kitchen hands in.
-export function serveOrder(board, order, combo) {
-  const index = board.orders.indexOf(order);
-  if (index === -1) return null;
-  board.orders.splice(index, 1);
-  board.served += 1;
-  const early = order.timeLeft / order.patience;
-  const speedBonus = Math.round(early * 10);
-  const coins = order.recipe.price;
-  const points = Math.round((coins * 10 + speedBonus) * combo);
-  return { coins, points, speedBonus, recipe: order.recipe };
+  // Staging hooks used only by the ?shot= screenshot presets.
+  function setElapsed(s) { elapsed = s; }
+  function setCoins(n) { coins = n; }
+  function setCombo(n) { combo = n; comboTimer = 12; }
+
+  return { start, update, serveDish, state, spawnOrder, setElapsed, setCoins, setCombo };
 }

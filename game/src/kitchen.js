@@ -1,334 +1,331 @@
-// Dapur MBG — the kitchen itself: the cook's hand, the chopping board,
-// the wok and fryer, the plating counter, and the serve window.
-// Every interaction goes through useStation(stationId, game) so mouse clicks
-// and keyboard use share exactly one ruleset.
+// kitchen.js — builds the whole 3D kitchen: sky-blue walls, cream floor,
+// back counter row (fridge, pantry, chopping board, stove, sink, serve window),
+// central island, props, steam and fridge mist. All geometry is procedural.
+import * as THREE from 'three';
+import { INGREDIENTS } from './config.js';
 
-import {
-  BURN_SECONDS, CHOP_SECONDS, COMBO, COOK_SECONDS, INGREDIENTS,
-  LAYOUT, MAX_LOST, SHIFT_SECONDS,
-} from './config.js';
-import {
-  findMatchingOrder, serveOrder, spawnOrder, updateOrders,
-} from './orders.js';
-import {
-  playBurn, playChop, playCoin, playDing, playFail, playGrab,
-  playServePop, playSizzle,
-} from './audio.js';
+const SKY_BLUE = 0x7ec8f2;
+const SKY_BLUE_DARK = 0x5aa8dd;
+const CREAM = 0xf6e7c8;
+const CREAM_DARK = 0xe8d3a8;
+const WHITE = 0xf8f8f4;
+const STEEL = 0xb9c2c9;
+const WOOD = 0xc98d4e;
+const WOOD_DARK = 0x9a6a33;
 
-export function createKitchen() {
-  return {
-    // What the cook is carrying: { ing, state } or null. One item at a time.
-    hand: null,
-    // Chopping job: { ing, progress, done } or null.
-    chop: null,
-    // Cooking jobs, one per burner: { ing, progress, done, burnt } or null.
-    wok: null,
-    fryer: null,
-    // Items laid on the plate, in order: [{ ing, state }].
-    plate: [],
-    particles: [],
-    floats: [],
-    message: '',
-    messageTimer: 0,
-    shake: 0,
+function mat(color, rough = 0.85, metal = 0.0) {
+  return new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal });
+}
+
+function box(w, h, d, color, x = 0, y = 0, z = 0, rough = 0.85) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, rough));
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+function cyl(rt, rb, h, color, x = 0, y = 0, z = 0, seg = 20) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), mat(color));
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+function sph(r, color, x = 0, y = 0, z = 0, ws = 16, hs = 12) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, ws, hs), mat(color));
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+function textTexture(lines, w, h, bg, fg, sub = null) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = Math.floor(h * 0.42);
+  g.font = `bold ${size}px Arial, sans-serif`;
+  while (g.measureText(lines[0]).width > w * 0.92 && size > 10) { size -= 2; g.font = `bold ${size}px Arial, sans-serif`; }
+  g.fillText(lines[0], w / 2, h * 0.36);
+  if (lines[1]) {
+    let s2 = Math.floor(h * 0.16);
+    g.font = `bold ${s2}px Arial, sans-serif`;
+    while (g.measureText(lines[1]).width > w * 0.94 && s2 > 8) { s2 -= 1; g.font = `bold ${s2}px Arial, sans-serif`; }
+    g.fillText(lines[1], w / 2, h * 0.74);
+  }
+  if (sub) {
+    let s3 = Math.floor(h * 0.12);
+    g.font = `${s3}px Arial, sans-serif`;
+    while (g.measureText(sub).width > w * 0.94 && s3 > 8) { s3 -= 1; g.font = `${s3}px Arial, sans-serif`; }
+    g.fillText(sub, w / 2, h * 0.9);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// One small readable prop per ingredient, built from primitives.
+export function buildIngredientProp(id, scale = 1) {
+  const g = new THREE.Group();
+  const c = INGREDIENTS[id].color;
+  switch (id) {
+    case 'rice': {
+      g.add(box(0.34, 0.22, 0.26, 0xf5f0dc, 0, 0.11, 0));
+      g.add(cyl(0.16, 0.13, 0.1, 0xffffff, 0, 0.27, 0)); break;
+    }
+    case 'egg': {
+      g.add(box(0.34, 0.1, 0.24, 0xd8c49a, 0, 0.05, 0));
+      g.add(sph(0.07, 0xfff3c4, -0.09, 0.15, 0)); g.add(sph(0.07, 0xfff3c4, 0.08, 0.15, 0)); break;
+    }
+    case 'chili': {
+      for (let i = 0; i < 3; i++) {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.3, 10), mat(0xd7263d));
+        cone.position.set(-0.1 + i * 0.1, 0.15, (i % 2) * 0.08 - 0.04);
+        cone.rotation.z = 0.5 - i * 0.4; cone.castShadow = true; g.add(cone);
+      } break;
+    }
+    case 'veggies': {
+      g.add(sph(0.13, 0x3fa34d, -0.06, 0.11, 0)); g.add(sph(0.11, 0x57b368, 0.09, 0.1, 0.03));
+      g.add(sph(0.08, 0x2c7a3a, 0.02, 0.2, -0.05)); break;
+    }
+    case 'noodle': {
+      const t = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.06, 10, 20), mat(0xf2c14e));
+      t.rotation.x = Math.PI / 2; t.position.y = 0.08; t.castShadow = true; g.add(t); break;
+    }
+    case 'chicken': {
+      g.add(sph(0.14, 0xf2b8a0, 0, 0.12, 0)); g.add(cyl(0.045, 0.045, 0.2, 0xf8e0c8, 0.16, 0.1, 0)); break;
+    }
+    case 'fish': {
+      const b = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.42, 12), mat(0x7fb3d5));
+      b.rotation.z = Math.PI / 2; b.position.y = 0.1; b.castShadow = true; g.add(b);
+      const tail = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.16, 4), mat(0x5b8fb5));
+      tail.rotation.z = -Math.PI / 2; tail.position.set(-0.26, 0.1, 0); g.add(tail); break;
+    }
+    case 'tofu': g.add(box(0.24, 0.16, 0.24, 0xfbf7ef, 0, 0.08, 0)); break;
+    case 'tempeh': g.add(box(0.3, 0.12, 0.2, 0xc68a4b, 0, 0.06, 0)); g.add(box(0.3, 0.03, 0.2, 0xa06a30, 0, 0.13, 0)); break;
+    case 'beef': g.add(box(0.3, 0.14, 0.22, 0x8e3b2f, 0, 0.07, 0)); g.add(box(0.2, 0.05, 0.14, 0xc96a55, 0, 0.15, 0)); break;
+    case 'potato': g.add(sph(0.11, 0xd9a441, -0.07, 0.1, 0)); g.add(sph(0.1, 0xc98f2e, 0.08, 0.09, 0.04)); break;
+    case 'carrot': {
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.32, 10), mat(0xe8722a));
+      cone.rotation.z = Math.PI / 2.4; cone.position.set(0, 0.12, 0); cone.castShadow = true; g.add(cone);
+      g.add(sph(0.05, 0x3fa34d, 0.16, 0.22, 0)); break;
+    }
+    case 'tomato': g.add(sph(0.12, 0xe63946, 0, 0.11, 0)); g.add(sph(0.05, 0x3fa34d, 0.02, 0.22, 0)); break;
+    case 'onion': g.add(sph(0.12, 0xe8d8f0, 0, 0.11, 0)); g.add(sph(0.1, 0xc9a8d8, 0, 0.1, 0.02)); break;
+    case 'milk': {
+      g.add(box(0.18, 0.26, 0.18, 0xffffff, 0, 0.13, 0));
+      g.add(box(0.18, 0.08, 0.18, 0x3fa7d6, 0, 0.3, 0)); break;
+    }
+    case 'fruit': {
+      g.add(cyl(0.17, 0.12, 0.12, 0xb0793f, 0, 0.06, 0));
+      g.add(sph(0.08, 0xff8c42, -0.06, 0.17, 0)); g.add(sph(0.08, 0x7bc043, 0.07, 0.17, 0.02)); break;
+    }
+    default: g.add(sph(0.12, c, 0, 0.12, 0));
+  }
+  g.scale.setScalar(scale);
+  return g;
+}
+
+export function buildKitchen(scene) {
+  const root = new THREE.Group();
+  scene.add(root);
+  const animated = { steam: [], mist: [], flames: [] };
+
+  // ---- Room: bright sky-blue walls, warm cream floor (clearly different) ----
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(14, 10), mat(CREAM, 0.95));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0, -0.5); floor.receiveShadow = true;
+  root.add(floor);
+  // cream floor tiles
+  for (let x = -6; x <= 6; x += 2) for (let z = -5; z <= 4; z += 2) {
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9), mat(x % 4 === 0 ? CREAM : CREAM_DARK, 0.95));
+    t.rotation.x = -Math.PI / 2; t.position.set(x + 0.5, 0.005, z + 0.5); t.receiveShadow = true;
+    root.add(t);
+  }
+  const backWall = box(14, 5.2, 0.3, SKY_BLUE, 0, 2.6, -5.2);
+  const leftWall = box(0.3, 5.2, 10, SKY_BLUE, -7, 2.6, -0.5);
+  const rightWall = box(0.3, 5.2, 10, SKY_BLUE, 7, 2.6, -0.5);
+  root.add(backWall, leftWall, rightWall);
+  root.add(box(14, 0.25, 0.34, WHITE, 0, 0.12, -5.2)); // baseboard
+
+  // ---- Wall decor: MBG poster, clock, window ----
+  const poster = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.5),
+    new THREE.MeshStandardMaterial({ map: textTexture(['MBG', 'FREE NUTRITIOUS MEALS'], 512, 340, '#fff7d6', '#d7263d', 'DAPUR MBG • SERVING WITH LOVE'), roughness: 0.9 }));
+  poster.position.set(0, 3.5, -5.02); root.add(poster);
+  const clock = new THREE.Group();
+  clock.add(cyl(0.42, 0.42, 0.06, WHITE, 0, 0, 0)); clock.rotation.x = Math.PI / 2;
+  const hand = box(0.04, 0.3, 0.02, 0x222222, 0.08, 0.08, 0.05); clock.add(hand);
+  clock.position.set(3.4, 3.9, -5.0); root.add(clock);
+  const win = new THREE.Group();
+  win.add(box(1.9, 1.5, 0.08, WHITE, 0, 0, 0));
+  win.add(box(1.6, 1.2, 0.1, 0xbfe6ff, 0, 0, 0));
+  win.add(box(0.06, 1.2, 0.11, WHITE, 0, 0, 0)); win.add(box(1.6, 0.06, 0.11, WHITE, 0, 0, 0));
+  win.position.set(-3.4, 3.7, -5.0); root.add(win);
+
+  // two pendant lamps, clear of the MBG poster in the middle
+  for (const lx of [-2.8, 2.8]) {
+    const lamp = new THREE.Group();
+    lamp.add(cyl(0.02, 0.02, 1.1, 0x333333, 0, 0.55, 0));
+    const shade = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.3, 20, 1, true), mat(0xffc94d, 0.6));
+    shade.position.y = 0; shade.castShadow = true; lamp.add(shade);
+    const bulb = sph(0.09, 0xfff2b0, 0, -0.12, 0); bulb.material = new THREE.MeshStandardMaterial({ color: 0xfff2b0, emissive: 0xffdf6b, emissiveIntensity: 1.4 }); lamp.add(bulb);
+    lamp.position.set(lx, 4.9, -0.6); root.add(lamp);
+  }
+
+  // ---- Back counter row ----
+  const counterTop = box(12.6, 0.12, 1.1, WOOD, 0, 0.95, -4.35);
+  const counterBody = box(12.6, 0.9, 1.0, 0xe8e2d4, 0, 0.45, -4.35);
+  root.add(counterTop, counterBody);
+  // cabinet doors
+  for (let x = -5.9; x <= 5.9; x += 1.05) root.add(box(0.95, 0.7, 0.04, 0xf2ede0, x, 0.45, -3.83));
+
+  // ---- FRIDGE: tall white double-door kulkas, top freezer, FREEZER badge ----
+  const fridge = new THREE.Group();
+  const body = box(1.7, 2.9, 1.05, WHITE, 0, 1.45, 0, 0.5); fridge.add(body);
+  const freezerDoor = box(1.62, 0.85, 0.08, 0xffffff, 0, 2.42, 0.55, 0.4); fridge.add(freezerDoor);
+  const fridgeDoor = new THREE.Group(); // swings open
+  fridgeDoor.position.set(-0.81, 1.5, 0.55);
+  const doorPanel = box(1.62, 1.9, 0.08, 0xffffff, 0.81, 0, 0, 0.4); fridgeDoor.add(doorPanel);
+  const handle = box(0.07, 1.5, 0.06, STEEL, 1.5, 0.1, 0.08, 0.35); fridgeDoor.add(handle);
+  const handleTop = box(0.07, 0.6, 0.06, STEEL, 0.72, 2.35, 0.6, 0.35); fridge.add(handleTop);
+  // magnets: little coloured squares on the doors
+  [[-0.5, 2.6, 0xff5a5a], [-0.2, 2.45, 0x3fa7d6], [0.3, 2.7, 0xffc94d], [-0.45, 1.9, 0x7bc043], [0.45, 2.1, 0xff8c42], [0.1, 1.6, 0x9b5de5]].forEach(([x, y, col]) => {
+    fridge.add(box(0.12, 0.12, 0.02, col, x, y, 0.6));
+  });
+  // FREEZER badge + "7 FRIDGE" label (canvas textures)
+  const badge = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34),
+    new THREE.MeshStandardMaterial({ map: textTexture(['FREEZER', '❄ -18°C'], 512, 160, '#1b6fb5', '#ffffff'), roughness: 0.6 }));
+  badge.position.set(0, 2.42, 0.6); fridge.add(badge);
+  const label = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.55),
+    new THREE.MeshStandardMaterial({ map: textTexture(['7 FRIDGE', 'COLD • FRESH • MBG'], 512, 256, '#fff7d6', '#d7263d'), roughness: 0.6 }));
+  label.position.set(0.81, -0.35, 0.06); fridgeDoor.add(label);
+  // cold-air mist at the door base
+  for (let i = 0; i < 4; i++) {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, roughness: 1 }));
+    puff.position.set(-0.6 + i * 0.4, 0.25, 0.75); puff.scale.y = 0.5;
+    fridge.add(puff); animated.mist.push(puff);
+  }
+  // milk cartons on top of the fridge
+  const milk1 = buildIngredientProp('milk', 1.1); milk1.position.set(-0.4, 2.9, 0); fridge.add(milk1);
+  const milk2 = buildIngredientProp('milk', 1.1); milk2.position.set(0.35, 2.9, 0); fridge.add(milk2);
+  fridge.position.set(-3.3, 0, -4.35);
+  root.add(fridge);
+
+  // ---- PANTRY: open shelves with dry goods ----
+  const pantry = new THREE.Group();
+  for (let s = 0; s < 3; s++) pantry.add(box(1.9, 0.07, 0.55, WOOD_DARK, 0, 1.1 + s * 0.75, 0));
+  pantry.add(box(0.07, 2.6, 0.55, WOOD_DARK, -0.95, 1.4, 0)); pantry.add(box(0.07, 2.6, 0.55, WOOD_DARK, 0.95, 1.4, 0));
+  const pantryGoods = [['rice', -0.6, 1.25], ['noodle', 0.1, 1.25], ['egg', 0.65, 1.25], ['chili', -0.55, 2.0], ['veggies', 0.15, 2.0], ['potato', 0.65, 2.0], ['onion', -0.5, 2.75], ['tomato', 0.2, 2.75], ['carrot', 0.65, 2.75]];
+  pantryGoods.forEach(([id, x, y]) => { const p = buildIngredientProp(id, 0.9); p.position.set(x, y, 0.05); pantry.add(p); });
+  pantry.position.set(-5.4, 0, -4.5);
+  root.add(pantry);
+
+  // ---- CHOP BOARD ----
+  const chop = new THREE.Group();
+  chop.add(box(0.9, 0.06, 0.6, 0xd8b98a, 0, 1.04, 0));
+  const knife = box(0.34, 0.02, 0.07, STEEL, 0.3, 1.09, -0.12, 0.3); chop.add(knife);
+  const chopped = buildIngredientProp('veggies', 0.8); chopped.position.set(-0.2, 1.08, 0.05); chop.add(chopped);
+  const chopped2 = buildIngredientProp('carrot', 0.8); chopped2.position.set(0.15, 1.08, 0.1); chop.add(chopped2);
+  chop.position.set(-1.1, 0, -4.35);
+  root.add(chop);
+
+  // ---- STOVE with two pots, flames, steam ----
+  const stove = new THREE.Group();
+  stove.add(box(1.7, 0.06, 0.8, 0x2b2b2b, 0, 1.04, 0));
+  for (const px of [-0.4, 0.42]) {
+    stove.add(cyl(0.26, 0.22, 0.22, 0x3a3f44, px, 1.18, 0, 18));
+    const soup = cyl(0.23, 0.23, 0.02, 0xe8722a, px, 1.29, 0, 18); stove.add(soup);
+    const flame = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.22, 10),
+      new THREE.MeshStandardMaterial({ color: 0xff9f1c, emissive: 0xff7b00, emissiveIntensity: 2 }));
+    flame.position.set(px, 1.0, 0.28); stove.add(flame); animated.flames.push(flame);
+    for (let i = 0; i < 3; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6),
+        new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, roughness: 1 }));
+      s.position.set(px + (Math.random() - 0.5) * 0.15, 1.45 + i * 0.18, 0);
+      s.userData.rise = i * 0.33; stove.add(s); animated.steam.push(s);
+    }
+  }
+  stove.add(box(1.7, 0.5, 0.1, STEEL, 0, 1.6, -0.45, 0.35)); // backsplash
+  stove.position.set(1.3, 0, -4.35);
+  root.add(stove);
+
+  // ---- SINK (also the trash) ----
+  const sink = new THREE.Group();
+  sink.add(box(0.8, 0.1, 0.6, STEEL, 0, 1.0, 0, 0.3));
+  sink.add(cyl(0.03, 0.03, 0.5, STEEL, -0.25, 1.25, -0.15, 10));
+  const tap = cyl(0.03, 0.03, 0.35, STEEL, 0, 1.4, -0.15, 10); tap.rotation.z = Math.PI / 2; sink.add(tap);
+  const water = cyl(0.3, 0.3, 0.02, 0x7ec8f2, 0, 1.02, 0, 18); water.material = new THREE.MeshStandardMaterial({ color: 0x7ec8f2, transparent: true, opacity: 0.8 }); sink.add(water);
+  sink.position.set(3.3, 0, -4.35);
+  root.add(sink);
+
+  // ---- SERVE WINDOW (right end of the back counter) ----
+  const serve = new THREE.Group();
+  serve.add(box(1.9, 0.12, 1.2, WOOD, 0, 1.0, 0.35));
+  const bell = new THREE.Group();
+  bell.add(cyl(0.14, 0.18, 0.08, 0xffc94d, 0, 0.06, 0, 18));
+  bell.add(sph(0.03, 0x333333, 0, 0.13, 0)); bell.position.set(0.55, 1.06, 0.3); serve.add(bell);
+  const plate1 = cyl(0.22, 0.18, 0.04, WHITE, -0.45, 1.08, 0.3, 20); serve.add(plate1);
+  const plateFood = buildIngredientProp('rice', 0.9); plateFood.position.set(-0.45, 1.12, 0.3); serve.add(plateFood);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.5),
+    new THREE.MeshStandardMaterial({ map: textTexture(['SERVE ★', 'PICK UP HERE'], 512, 170, '#d7263d', '#ffffff'), roughness: 0.7 }));
+  sign.position.set(0, 2.1, -0.5); serve.add(sign);
+  serve.position.set(5.3, 0, -4.35);
+  root.add(serve);
+
+  // ---- CENTRAL ISLAND (assembly counter) ----
+  const island = new THREE.Group();
+  island.add(box(3.6, 0.9, 1.3, 0xe8e2d4, 0, 0.45, 0));
+  island.add(box(3.8, 0.1, 1.5, WOOD, 0, 0.95, 0));
+  island.add(box(3.8, 0.08, 0.08, WOOD_DARK, 0, 0.5, 0.72));
+  // ingredients waiting on the island
+  const islandGoods = [['rice', -1.4], ['egg', -0.95], ['chili', 1.35], ['fruit', 1.55]];
+  islandGoods.forEach(([id, x]) => { const p = buildIngredientProp(id, 0.95); p.position.set(x, 1.0, -0.25); island.add(p); });
+  island.position.set(0, 0, -0.7);
+  root.add(island);
+
+  // round rug in the foreground (fills the empty floor in front of the island)
+  const rug = new THREE.Mesh(new THREE.CircleGeometry(1.7, 28), mat(0xd7263d, 0.95));
+  rug.rotation.x = -Math.PI / 2; rug.position.set(0, 0.012, 2.0); rug.receiveShadow = true; root.add(rug);
+  const rugIn = new THREE.Mesh(new THREE.CircleGeometry(1.25, 28), mat(0xfff7d6, 0.95));
+  rugIn.rotation.x = -Math.PI / 2; rugIn.position.set(0, 0.015, 2.0); rugIn.receiveShadow = true; root.add(rugIn);
+  const rugSun = new THREE.Mesh(new THREE.CircleGeometry(0.55, 24), mat(0xffc94d, 0.9));
+  rugSun.rotation.x = -Math.PI / 2; rugSun.position.set(0, 0.018, 2.0); rugSun.receiveShadow = true; root.add(rugSun);
+
+  // ---- Crates + fruit basket on the floor (busy look) ----
+  const crate1 = box(0.8, 0.5, 0.8, WOOD, -6.2, 0.25, -1.5); root.add(crate1);
+  const crateVeg = buildIngredientProp('veggies', 1.2); crateVeg.position.set(-6.2, 0.55, -1.5); root.add(crateVeg);
+  const crate2 = box(0.8, 0.5, 0.8, WOOD_DARK, 6.2, 0.25, -1.8); root.add(crate2);
+  const crateFruit = buildIngredientProp('fruit', 1.2); crateFruit.position.set(6.2, 0.55, -1.8); root.add(crateFruit);
+
+  const stations = {
+    fridge: { pos: new THREE.Vector3(-3.3, 0, -2.9), face: new THREE.Vector3(-3.3, 0, -4.35) },
+    pantry: { pos: new THREE.Vector3(-5.4, 0, -2.9), face: new THREE.Vector3(-5.4, 0, -4.5) },
+    chop: { pos: new THREE.Vector3(-1.1, 0, -2.9), face: new THREE.Vector3(-1.1, 0, -4.35) },
+    stove: { pos: new THREE.Vector3(1.3, 0, -2.9), face: new THREE.Vector3(1.3, 0, -4.35) },
+    serve: { pos: new THREE.Vector3(5.3, 0, -2.9), face: new THREE.Vector3(5.3, 0, -4.35) },
+    trash: { pos: new THREE.Vector3(3.3, 0, -2.9), face: new THREE.Vector3(3.3, 0, -4.35) },
+    island: { pos: new THREE.Vector3(0, 0, 0.9), face: new THREE.Vector3(0, 0, -0.7) },
   };
-}
 
-export function createGame() {
-  return {
-    screen: 'title', // title | playing | paused | over | complete
-    score: 0,
-    coins: 0,
-    combo: 1,
-    comboStreak: 0,
-    level: 1,
-    day: 1,
-    shiftLeft: SHIFT_SECONDS,
-    lost: 0,
-    served: 0,
-    best: 0,
-    elapsed: 0,
-    kitchen: createKitchen(),
-    board: null, // created by main.js (needs orders module state)
-    flash: 0, // serve flash 0..1
-    tickSecond: -1,
-    lastStation: null, // last station used — the chef walks there (cosmetic)
-    chefPose: null, // staged screenshot pose override (cosmetic)
-  };
-}
-
-export function showMessage(kitchen, text, seconds) {
-  kitchen.message = text;
-  kitchen.messageTimer = seconds || 2;
-}
-
-export function addParticles(kitchen, x, y, color, count, speed) {
-  for (let i = 0; i < count; i += 1) {
-    const angle = Math.random() * Math.PI * 2;
-    const vel = (speed || 60) * (0.4 + Math.random() * 0.8);
-    kitchen.particles.push({
-      x, y, vx: Math.cos(angle) * vel, vy: Math.sin(angle) * vel - 40,
-      life: 0.6 + Math.random() * 0.5, max: 1, color, size: 2 + Math.random() * 4,
+  function update(dt, t) {
+    for (const s of animated.steam) {
+      s.position.y = 1.45 + ((t * 0.35 + s.userData.rise) % 1) * 0.7;
+      s.material.opacity = 0.55 * (1 - ((t * 0.35 + s.userData.rise) % 1));
+      s.scale.setScalar(0.7 + ((t * 0.35 + s.userData.rise) % 1) * 0.9);
+    }
+    animated.mist.forEach((m, i) => {
+      m.material.opacity = 0.22 + 0.16 * Math.sin(t * 1.6 + i * 1.7);
+      m.position.x = -0.6 + i * 0.4 + Math.sin(t * 0.9 + i) * 0.05;
     });
+    animated.flames.forEach((f, i) => { f.scale.y = 0.85 + 0.3 * Math.sin(t * 11 + i * 2.4); });
   }
+
+  return {
+    root, stations, island, fridgeDoor, update,
+    setFridgeOpen(open) { fridgeDoor.rotation.y = open ? -1.9 : 0; },
+  };
 }
-
-export function addFloat(kitchen, x, y, text, color) {
-  kitchen.floats.push({ x, y, text, color: color || '#f2c94c', life: 1.4, max: 1.4 });
-}
-
-function preparedName(item) {
-  const base = INGREDIENTS[item.ing].name;
-  if (item.state === 'chopped') return `${base} chopped`;
-  if (item.state === 'cooked') return `${base} cooked`;
-  return base;
-}
-
-// --- Station actions -------------------------------------------------------
-
-function grabIngredient(kitchen, ingId) {
-  if (kitchen.hand) {
-    showMessage(kitchen, 'Hands full! Put it down first.');
-    return;
-  }
-  kitchen.hand = { ing: ingId, state: 'raw' };
-  playGrab();
-}
-
-function startChop(kitchen) {
-  const hand = kitchen.hand;
-  if (!hand) { showMessage(kitchen, 'Grab an ingredient from the pantry first.'); return; }
-  if (INGREDIENTS[hand.ing].prep !== 'chop' || hand.state !== 'raw') {
-    showMessage(kitchen, `${INGREDIENTS[hand.ing].name} doesn't need chopping.`);
-    return;
-  }
-  if (kitchen.chop) { showMessage(kitchen, 'The board is busy.'); return; }
-  kitchen.chop = { ing: hand.ing, progress: 0, done: false };
-  kitchen.hand = null;
-  playChop();
-}
-
-function collectChop(kitchen) {
-  if (!kitchen.chop) return;
-  if (!kitchen.chop.done) {
-    // Mashing the board speeds the chop up.
-    kitchen.chop.progress += 0.35;
-    playChop();
-    return;
-  }
-  if (kitchen.hand) { showMessage(kitchen, 'Hands full!'); return; }
-  kitchen.hand = { ing: kitchen.chop.ing, state: 'chopped' };
-  kitchen.chop = null;
-  playGrab();
-}
-
-function startCook(kitchen, burner) {
-  const hand = kitchen.hand;
-  const slot = burner === 'wok' ? 'wok' : 'fryer';
-  if (!hand) { showMessage(kitchen, 'Grab an ingredient from the pantry first.'); return; }
-  const info = INGREDIENTS[hand.ing];
-  if (info.prep !== 'cook' || hand.state !== 'raw') {
-    showMessage(kitchen, `${info.name} isn't cooked here.`);
-    return;
-  }
-  if (info.cookAt !== burner) {
-    showMessage(kitchen, `${info.name} cooks in the ${info.cookAt === 'wok' ? 'WOK' : 'FRYER'}.`);
-    return;
-  }
-  if (kitchen[slot]) { showMessage(kitchen, `The ${burner === 'wok' ? 'wok' : 'fryer'} is busy.`); return; }
-  kitchen[slot] = { ing: hand.ing, progress: 0, done: false, burnt: false };
-  kitchen.hand = null;
-  playSizzle();
-  const rect = LAYOUT[burner];
-  addParticles(kitchen, rect.x + rect.w / 2, rect.y + 70, '#ffffff', 10, 50);
-}
-
-function collectCook(kitchen, burner) {
-  const slot = burner === 'wok' ? 'wok' : 'fryer';
-  const job = kitchen[slot];
-  if (!job) return;
-  if (job.burnt) {
-    kitchen[slot] = null;
-    showMessage(kitchen, 'Burnt! Toss it in the trash.');
-    kitchen.hand = { ing: job.ing, state: 'burnt' };
-    playBurn();
-    return;
-  }
-  if (!job.done) { showMessage(kitchen, 'Not ready yet — patience!'); return; }
-  if (kitchen.hand) { showMessage(kitchen, 'Hands full!'); return; }
-  kitchen.hand = { ing: job.ing, state: 'cooked' };
-  kitchen[slot] = null;
-  playGrab();
-}
-
-function plateItem(kitchen, game) {
-  const hand = kitchen.hand;
-  if (!hand) { showMessage(kitchen, 'Nothing in hand.'); return; }
-  if (hand.state === 'burnt') { showMessage(kitchen, 'Burnt! Toss it in the trash.'); return; }
-  if (kitchen.plate.length >= 4) { showMessage(kitchen, 'Plate is full!'); return; }
-  kitchen.plate.push({ ing: hand.ing, state: hand.state });
-  kitchen.hand = null;
-  playGrab();
-  const order = game.board ? findMatchingOrder(game.board, kitchen.plate) : null;
-  if (order) {
-    showMessage(kitchen, `${order.recipe.name} is READY! Take it to SERVE!`, 2.5);
-    playDing();
-  }
-}
-
-function servePlate(kitchen, game) {
-  if (kitchen.plate.length === 0) { showMessage(kitchen, 'The plate is empty.'); return; }
-  const order = game.board ? findMatchingOrder(game.board, kitchen.plate) : null;
-  if (!order) {
-    showMessage(kitchen, 'No matching order yet — check the tickets!');
-    kitchen.shake = 0.35;
-    return;
-  }
-  const result = serveOrder(game.board, order, game.combo);
-  kitchen.plate = [];
-  game.coins += result.coins;
-  game.score += result.points;
-  game.served += 1;
-  game.comboStreak += 1;
-  game.combo = Math.min(COMBO.cap, 1 + game.comboStreak * COMBO.step);
-  game.flash = 1;
-  const rect = LAYOUT.serve;
-  addFloat(kitchen, rect.x + rect.w / 2, rect.y - 10, `+${result.coins} coins`, '#f2c94c');
-  addFloat(kitchen, rect.x + rect.w / 2, rect.y + 22, `+${result.points}`, '#ffffff');
-  addParticles(kitchen, rect.x + rect.w / 2, rect.y + 60, '#f2c94c', 18, 120);
-  playServePop();
-  playCoin();
-  if (game.score > game.best) game.best = game.score;
-}
-
-function trashHand(kitchen) {
-  if (kitchen.hand) {
-    kitchen.hand = null;
-    showMessage(kitchen, 'Tossed.');
-    return;
-  }
-  if (kitchen.plate.length > 0) {
-    kitchen.plate = [];
-    showMessage(kitchen, 'Plate cleared.');
-  }
-}
-
-// One entry point for every station interaction, mouse or keyboard.
-export function useStation(game, stationId, arg) {
-  const kitchen = game.kitchen;
-  if (game.screen !== 'playing') return;
-  // Presentational only: the chef walks to the station just used.
-  game.lastStation = stationId;
-  if (stationId === 'pantry' || stationId === 'fridge') {
-    if (arg) grabIngredient(kitchen, arg);
-    return;
-  }
-  if (stationId === 'board') { if (kitchen.chop) collectChop(kitchen); else startChop(kitchen); return; }
-  if (stationId === 'wok') { if (kitchen.wok) collectCook(kitchen, 'wok'); else startCook(kitchen, 'wok'); return; }
-  if (stationId === 'fryer') { if (kitchen.fryer) collectCook(kitchen, 'fryer'); else startCook(kitchen, 'fryer'); return; }
-  if (stationId === 'plate') { plateItem(kitchen, game); return; }
-  if (stationId === 'serve') { servePlate(kitchen, game); return; }
-  if (stationId === 'trash') { trashHand(kitchen); }
-}
-
-// --- Per-frame update ------------------------------------------------------
-
-export function updateKitchen(game, dt, rng) {
-  const kitchen = game.kitchen;
-  game.elapsed += dt;
-  game.shiftLeft -= dt;
-
-  // Chopping progresses on its own; mashing the board speeds it.
-  if (kitchen.chop && !kitchen.chop.done) {
-    kitchen.chop.progress += dt / CHOP_SECONDS;
-    if (kitchen.chop.progress >= 1) {
-      kitchen.chop.progress = 1;
-      kitchen.chop.done = true;
-      playDing();
-    }
-  }
-  for (const slot of ['wok', 'fryer']) {
-    const job = kitchen[slot];
-    if (!job || job.burnt) continue;
-    job.progress += dt / COOK_SECONDS;
-    if (job.progress >= 1 && !job.done) {
-      job.done = true;
-      playDing();
-      const rect = LAYOUT[slot];
-      addParticles(kitchen, rect.x + rect.w / 2, rect.y + 60, '#ffffff', 8, 40);
-    } else if (job.done && job.progress >= 1 + BURN_SECONDS / COOK_SECONDS) {
-      job.burnt = true;
-      playBurn();
-      showMessage(kitchen, 'BURNT! Grab it and toss it!', 2.5);
-    }
-  }
-
-  // Orders tick; expired ones cost a life and reset the combo.
-  const expired = updateOrders(game.board, dt, game.level, rng);
-  for (const order of expired) {
-    game.lost += 1;
-    game.combo = 1;
-    game.comboStreak = 0;
-    kitchen.shake = 0.5;
-    playFail();
-    showMessage(kitchen, `Order lost: ${order.recipe.name}! (${game.lost}/${MAX_LOST})`, 3);
-    if (game.lost >= MAX_LOST) {
-      game.screen = 'over';
-      return;
-    }
-  }
-
-  // Shift clock: survive it and the day is complete.
-  if (game.shiftLeft <= 0) {
-    game.screen = 'complete';
-    game.score += 100 * game.day;
-    return;
-  }
-
-  // Level grows with dishes served: faster orders, wider menu.
-  const newLevel = 1 + Math.floor(game.served / 4);
-  if (newLevel !== game.level) {
-    game.level = newLevel;
-    showMessage(kitchen, `Level ${game.level}! Orders are coming faster!`, 3);
-    playDing();
-  }
-
-  // Particles, floats, messages, flash decay.
-  for (let i = kitchen.particles.length - 1; i >= 0; i -= 1) {
-    const p = kitchen.particles[i];
-    p.life -= dt;
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-    p.vy -= 30 * dt;
-    if (p.life <= 0) kitchen.particles.splice(i, 1);
-  }
-  for (let i = kitchen.floats.length - 1; i >= 0; i -= 1) {
-    const f = kitchen.floats[i];
-    f.life -= dt;
-    f.y -= 34 * dt;
-    if (f.life <= 0) kitchen.floats.splice(i, 1);
-  }
-  if (kitchen.messageTimer > 0) kitchen.messageTimer -= dt;
-  if (kitchen.shake > 0) kitchen.shake -= dt;
-  if (game.flash > 0) game.flash = Math.max(0, game.flash - dt * 2.5);
-}
-
-export function startDay(game, rng) {
-  game.screen = 'playing';
-  game.kitchen = createKitchen();
-  game.shiftLeft = SHIFT_SECONDS;
-  game.lost = 0;
-  game.served = 0;
-  game.combo = 1;
-  game.comboStreak = 0;
-  game.elapsed = 0;
-  game.level = 1;
-  if (game.board) {
-    game.board.orders = [];
-    game.board.spawnTimer = 3;
-    spawnOrder(game.board, 1, rng);
-    spawnOrder(game.board, 1, rng);
-  }
-}
-
-export { preparedName };

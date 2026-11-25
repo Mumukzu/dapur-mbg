@@ -1,86 +1,188 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dapur MBG — Free Nutritious Meals Kitchen</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="data:,">
-<link rel="stylesheet" href="./src/style.css">
+<title>Dapur MBG — Free Nutritious Meal Kitchen</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #7ec8f2;
+    font-family: "Trebuchet MS", "Segoe UI", Verdana, Arial, sans-serif; color: #21303f; }
+  #game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .hidden { display: none !important; }
+
+  /* ---- top bar ---- */
+  #topbar { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center;
+    gap: 10px; padding: 0 12px; background: linear-gradient(#fff7d6, #ffe9a8); border-bottom: 3px solid #d7263d;
+    z-index: 10; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+  #logo { font-size: 24px; font-weight: 900; color: #d7263d; letter-spacing: 1px; white-space: nowrap; }
+  #logo small { font-size: 12px; color: #0f8a8a; display: block; letter-spacing: 2px; }
+  .pill { background: #fff; border: 2px solid #0f8a8a; border-radius: 20px; padding: 4px 12px;
+    font-weight: 800; font-size: 15px; white-space: nowrap; }
+  #timer-wrap { margin-left: auto; text-align: center; }
+  #timer { font-size: 30px; font-weight: 900; color: #0b6b6b; line-height: 1; }
+  #timer.urgent { color: #d7263d; animation: blink .5s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  #timer-label { font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #666; }
+  #combo { background: #0f8a8a; color: #fff; border-color: #0b6b6b; }
+  #combo.hot { background: #d7263d; border-color: #8e1b2c; animation: pulse .6s infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.08); } }
+  .top-btn { background: #fff; border: 2px solid #0f8a8a; border-radius: 10px; padding: 6px 10px;
+    font-weight: 800; cursor: pointer; font-size: 14px; }
+  .top-btn:hover { background: #e6f7f7; }
+
+  /* ---- order board ---- */
+  #board { position: fixed; top: 66px; left: 10px; width: 268px; z-index: 9;
+    background: rgba(255,255,255,.94); border: 3px solid #0f8a8a; border-radius: 14px; padding: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+  #board h2 { font-size: 16px; color: #0b6b6b; letter-spacing: 1px; margin-bottom: 8px; }
+  #board h2 span { float: right; font-size: 12px; color: #d7263d; }
+  .order { background: #fff7d6; border: 2px solid #e8d3a8; border-radius: 10px; padding: 7px 8px; margin-bottom: 8px; }
+  .order-head { display: flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; }
+  .order-icon { font-size: 20px; }
+  .order-price { margin-left: auto; color: #b8860b; }
+  .order-recipe { font-size: 12px; margin: 4px 0; }
+  .ing { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1px 5px; margin-right: 3px; white-space: nowrap; }
+  .patience { height: 9px; background: #e5e5e5; border-radius: 5px; overflow: hidden; }
+  .patience-fill { height: 100%; border-radius: 5px; }
+  .patience-fill.good { background: #3fa34d; } .patience-fill.warn { background: #f2a007; } .patience-fill.bad { background: #d7263d; }
+  .patience-num { font-size: 11px; font-weight: 800; color: #666; text-align: right; }
+  .order-empty { color: #888; font-size: 13px; text-align: center; padding: 8px; }
+
+  /* ---- bottom dock: tray + stations ---- */
+  #dock { position: fixed; left: 50%; transform: translateX(-50%); bottom: 10px; z-index: 10;
+    display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  #plated { background: #d7263d; color: #fff; font-weight: 900; font-size: 15px; padding: 5px 14px;
+    border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,.35); display: none; }
+  #plated.show { display: block; animation: pulse .5s infinite alternate; }
+  #tray { display: flex; gap: 6px; }
+  .tray-slot { width: 92px; height: 46px; background: rgba(255,255,255,.92); border: 2px dashed #0f8a8a;
+    border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 20px; }
+  .tray-slot.filled { border-style: solid; background: #fff; }
+  .tray-slot small { font-size: 10px; font-weight: 700; }
+  #stations { display: flex; gap: 6px; }
+  .station-btn { background: #fff; border: 2px solid #0f8a8a; border-bottom-width: 4px; border-radius: 12px;
+    padding: 8px 12px; font-weight: 900; font-size: 14px; cursor: pointer; color: #0b6b6b; }
+  .station-btn:hover { background: #e6f7f7; }
+  .station-btn.here { background: #ffc94d; border-color: #b8860b; }
+  .station-btn small { display: block; font-size: 10px; color: #888; }
+  #hint { background: rgba(33,48,63,.85); color: #fff; font-size: 13px; font-weight: 700;
+    padding: 5px 14px; border-radius: 16px; max-width: 640px; text-align: center; }
+
+  /* ---- picker ---- */
+  #picker { position: fixed; top: 66px; right: 10px; width: 250px; z-index: 11;
+    background: rgba(255,255,255,.97); border: 3px solid #d7263d; border-radius: 14px; padding: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+  #picker h3 { font-size: 15px; color: #d7263d; margin-bottom: 8px; }
+  #picker-close { float: right; border: none; background: #eee; border-radius: 6px; padding: 2px 8px; cursor: pointer; font-weight: 900; }
+  .pick { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; margin-bottom: 6px;
+    background: #fff7d6; border: 2px solid #e8d3a8; border-radius: 10px; padding: 7px 9px;
+    font-size: 14px; font-weight: 800; cursor: pointer; }
+  .pick:hover { background: #ffe9a8; }
+  .pick-emoji { font-size: 20px; }
+  .pick-tag { margin-left: auto; font-size: 10px; color: #0f8a8a; }
+
+  /* ---- overlays ---- */
+  .overlay { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center;
+    background: rgba(20, 60, 90, .45); }
+  .card { background: #fffdf4; border: 4px solid #d7263d; border-radius: 20px; padding: 26px 34px;
+    max-width: 620px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+  .card h1 { font-size: 46px; color: #d7263d; letter-spacing: 1px; }
+  .card h1 span { color: #0f8a8a; }
+  .card h2 { font-size: 15px; color: #0b6b6b; letter-spacing: 3px; margin: 2px 0 14px; }
+  .card p { font-size: 15px; line-height: 1.5; margin-bottom: 10px; }
+  .card .howto { text-align: left; background: #fff7d6; border-radius: 12px; padding: 12px 16px; margin: 12px 0; font-size: 14px; line-height: 1.7; }
+  .big-btn { background: #d7263d; color: #fff; border: none; border-bottom: 5px solid #8e1b2c; border-radius: 14px;
+    font-size: 22px; font-weight: 900; padding: 12px 38px; cursor: pointer; letter-spacing: 1px; }
+  .big-btn:hover { background: #e63946; }
+  .big-btn:active { transform: translateY(3px); border-bottom-width: 2px; }
+  #final-stats { font-size: 17px; margin: 12px 0; }
+  #controls-hint { position: fixed; right: 10px; bottom: 10px; z-index: 9; background: rgba(255,255,255,.85);
+    border-radius: 10px; padding: 6px 10px; font-size: 11px; font-weight: 700; color: #444; }
+</style>
 </head>
 <body>
-<div id="stage"></div>
+<canvas id="game-canvas"></canvas>
 
-<div id="hud" aria-hidden="false">
-  <header id="topbar">
-    <div class="brand">🍳 DAPUR MBG <span>Free Nutritious Meals</span></div>
-    <div class="shift-wrap">
-      <div class="shift-label"><span id="shift-text">2:30</span><span id="day-text">Day 1 · Level 1</span></div>
-      <div class="shift-bar"><div id="shift-fill"></div></div>
-    </div>
-    <div class="stats">
-      <div class="stat">Score <b id="score">0</b></div>
-      <div class="stat">Coins <b id="coins">0</b> 🪙</div>
-      <div class="stat">Combo <b id="combo">x1.0</b></div>
-      <div class="stat">Lost <b id="lost">0/3</b></div>
-      <button id="mute-btn" type="button" title="Mute (M)">🔊</button>
-      <button id="pause-btn" type="button" title="Pause (P)">⏸</button>
-    </div>
-  </header>
-
-  <div id="orders" aria-label="Order board"></div>
-  <div id="msg" class="hidden"></div>
-  <div id="hand-chip">Hands empty — grab an ingredient from the pantry</div>
-  <div id="floats"></div>
-  <div id="labels"></div>
+<div id="topbar">
+  <div id="logo">🍳 DAPUR MBG<small>FREE NUTRITIOUS MEALS</small></div>
+  <div class="pill" id="day">Day 1</div>
+  <div class="pill" id="lost">Lost 0/3</div>
+  <div id="timer-wrap"><div id="timer">2:30</div><div id="timer-label">SHIFT TIMER</div></div>
+  <div class="pill" id="coins">0 🪙</div>
+  <div class="pill" id="score">Score 0</div>
+  <div class="pill" id="combo">COMBO x1.0</div>
+  <button class="top-btn" id="mute-btn">🔊 Sound</button>
+  <button class="top-btn" id="pause-btn">⏸ Pause</button>
 </div>
 
-<div id="screen-title" class="screen">
-  <div class="panel">
-    <h1>DAPUR MBG</h1>
-    <p class="tagline">Free Nutritious Meals — Kitchen Rush</p>
-    <p class="intro">Cook fresh meal boxes for the kids before the tickets run out.
-      Grab ingredients, chop, cook, plate and serve — don't let 3 orders expire!</p>
+<div id="board">
+  <h2>📋 ORDER BOARD <span id="board-count">ORDERS</span></h2>
+  <div id="orders"></div>
+</div>
+
+<div id="picker" class="hidden">
+  <button id="picker-close">✕</button>
+  <h3 id="picker-title">FRIDGE</h3>
+  <div id="picker-list"></div>
+</div>
+
+<div id="dock">
+  <div id="plated"></div>
+  <div id="tray"></div>
+  <div id="stations">
+    <button class="station-btn" data-station="fridge">🧊 FRIDGE<small>1 · cold goods</small></button>
+    <button class="station-btn" data-station="pantry">🥫 PANTRY<small>2 · dry goods</small></button>
+    <button class="station-btn" data-station="chop">🔪 CHOP<small>3 · Space</small></button>
+    <button class="station-btn" data-station="stove">🍳 STOVE<small>4 · Space</small></button>
+    <button class="station-btn" data-station="serve">🛎️ SERVE<small>5 · Space</small></button>
+    <button class="station-btn" data-station="trash">🗑️ TRASH<small>6 · clear tray</small></button>
+  </div>
+  <div id="hint">Welcome to Dapur MBG!</div>
+</div>
+
+<div id="controls-hint">Click a station or press 1–6 • Space = work • P = pause • M = mute</div>
+
+<div class="overlay" id="title-screen">
+  <div class="card">
+    <h1>🍳 DAPUR <span>MBG</span></h1>
+    <h2>FREE NUTRITIOUS MEAL KITCHEN</h2>
+    <p>Chef Sari is cooking free healthy meals for school kids! Take orders, grab
+    ingredients from the <b>fridge</b> and <b>pantry</b>, <b>chop</b> and <b>cook</b> them,
+    then <b>serve</b> before patience runs out. Lose 3 orders and the shift is over!</p>
     <div class="howto">
-      <div><b>1 · PANTRY</b> Grab dry goods — rice, noodles, veggies</div>
-      <div><b>7 · FRIDGE</b> Grab cold goods — fish, tofu, milk, fruit</div>
-      <div><b>2 · CHOP BOARD</b> Chop chili &amp; veggies (click again to speed up)</div>
-      <div><b>3 · WOK / 4 · FRYER</b> Cook noodles &amp; eggs in the wok, chicken in the fryer — grab before it burns!</div>
-      <div><b>5 · PLATE</b> Build the dish to match a ticket</div>
-      <div><b>6 · SERVE</b> Serve the finished plate for coins</div>
+      🧊 <b>1 Fridge</b> — milk, fish, tofu, fruit &nbsp;•&nbsp; 🥫 <b>2 Pantry</b> — rice, noodle &amp; dry goods<br>
+      🔪 <b>3 Chop</b> then 🍳 <b>4 Cook</b> what is on your tray &nbsp;•&nbsp; 🛎️ <b>5 Serve</b> the plated dish<br>
+      🖱️ Click a station (or press 1–6) to send Chef Sari there &nbsp;•&nbsp; <b>Space</b> works at a station<br>
+      ⭐ Serve fast in a row to build your combo up to <b>x2.0</b> &nbsp;•&nbsp; <b>P</b> pause, <b>M</b> mute
     </div>
-    <p class="keys">Mouse plays alone · Keys <b>1–7</b> pick a station, <b>Space</b> uses it, <b>P</b> pause, <b>M</b> mute</p>
-    <button id="start-btn" type="button">▶ START SHIFT</button>
-    <p class="best">Best score: <b id="best-title">0</b> · Shift: 150 seconds · 3 lost orders ends the day</p>
+    <button class="big-btn" id="start-btn">▶ START SHIFT</button>
+    <p style="margin-top:10px; font-size:12px; color:#888;">10 dishes • 16 ingredients • 150-second shifts • a new day every 4 serves</p>
   </div>
 </div>
 
-<div id="screen-pause" class="screen hidden">
-  <div class="panel">
-    <h1>PAUSED</h1>
-    <p class="intro">The kitchen is waiting. The tickets are not.</p>
-    <button id="resume-btn" type="button">▶ RESUME</button>
+<div class="overlay hidden" id="pause-screen">
+  <div class="card">
+    <h1>⏸ PAUSED</h1>
+    <p>Take a breath, Chef. The orders will wait… well, actually they won't.</p>
+    <button class="big-btn" id="resume-btn">▶ RESUME</button>
   </div>
 </div>
 
-<div id="screen-over" class="screen hidden">
-  <div class="panel">
-    <h1>SHIFT OVER</h1>
-    <p class="intro">Three orders were lost. The kids will wait for tomorrow.</p>
-    <p class="final">Score <b id="final-score">0</b> · Served <b id="final-served">0</b> · Best <b id="final-best">0</b></p>
-    <button id="retry-btn" type="button">↻ COOK AGAIN</button>
+<div class="overlay hidden" id="gameover-screen">
+  <div class="card">
+    <h1>🏁 SHIFT OVER</h1>
+    <h2 id="final-reason">Shift complete!</h2>
+    <div id="final-stats"></div>
+    <button class="big-btn" id="restart-btn">↻ NEXT SHIFT</button>
   </div>
 </div>
 
-<div id="screen-complete" class="screen hidden">
-  <div class="panel">
-    <h1>DAY COMPLETE! 🎉</h1>
-    <p class="intro">You survived the whole shift. Every meal box found a happy kid.</p>
-    <p class="final">Score <b id="complete-score">0</b> · Served <b id="complete-served">0</b> · Best <b id="complete-best">0</b></p>
-    <button id="again-btn" type="button">▶ NEXT DAY</button>
-  </div>
-</div>
-
-<p id="status" role="status" aria-live="polite"></p>
-<script type="module" src="./src/main.js"></script>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+<script type="module" src="./src/game.js"></script>
 </body>
 </html>
